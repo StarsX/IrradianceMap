@@ -2,6 +2,7 @@
 // By Stars XU Tianchen
 //--------------------------------------------------------------------------------------
 
+#include "CSCubeMap.hlsli"
 #include "CSMipGaussian.hlsli"
 
 #define MAX_LEVEL_COUNT	12
@@ -11,17 +12,15 @@
 //--------------------------------------------------------------------------------------
 cbuffer cb
 {
-	float2	g_focus;
-	float	g_sigma;
-	uint	g_level;
+	uint g_level;
 };
 
 //--------------------------------------------------------------------------------------
 // Textures
 //--------------------------------------------------------------------------------------
-Texture2D			g_txSource;
-Texture2D			g_txCoarser;
-RWTexture2D<float4>	g_txDest;
+TextureCube					g_txSource;
+TextureCube					g_txCoarser;
+RWTexture2DArray<float4>	g_rwDest;
 
 //--------------------------------------------------------------------------------------
 // Texture samplers
@@ -32,19 +31,15 @@ SamplerState	g_smpLinear;
 // Compute shader
 //--------------------------------------------------------------------------------------
 [numthreads(8, 8, 1)]
-void main(uint2 DTid : SV_DispatchThreadID)
+void main(uint3 DTid : SV_DispatchThreadID)
 {
-	float2 dim;
-	g_txDest.GetDimensions(dim.x, dim.y);
-
 	// Fetch the color of the current level and the resolved color at the coarser level
-	const float2 tex = (DTid + 0.5) / dim;
-	const float4 src = g_txSource.SampleLevel(g_smpLinear, tex, 0);
-	const float4 coarser = g_txCoarser.SampleLevel(g_smpLinear, tex, 0);
+	const float3 tex = GetCubeTexcoord(DTid, g_rwDest);
+	const float4 src = g_txSource.SampleLevel(g_smpLinear, tex, 0.0);
+	const float4 coarser = g_txCoarser.SampleLevel(g_smpLinear, tex, 0.0);
 
 	// Compute deviation
-	const float2 r = (2.0 * tex - 1.0) - g_focus;
-	const float sigma = g_sigma * dot(r, r);
+	const float sigma = 16.0;
 	const float sigma2 = sigma * sigma;
 
 	// Gaussian-approximating Haar coefficients (weights of box filters)
@@ -71,5 +66,5 @@ void main(uint2 DTid : SV_DispatchThreadID)
 	weight = wsum > 0.0 ? weight / wsum : 1.0;
 #endif
 
-	g_txDest[DTid] = lerp(coarser, src, weight);
+	g_rwDest[DTid] = lerp(coarser, src, weight);
 }

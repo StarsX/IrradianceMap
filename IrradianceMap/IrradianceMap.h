@@ -49,10 +49,6 @@ private:
 	std::unique_ptr<Filter> m_filter;
 	XUSG::RenderTargetTable	m_rtvTables[Filter::FrameCount];
 
-	// Animation
-	XMFLOAT2	m_focus;
-	float		m_sigma;
-
 	// Synchronization objects.
 	uint32_t	m_frameIndex;
 	HANDLE		m_fenceEvent;

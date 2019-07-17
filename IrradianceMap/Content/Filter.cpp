@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "Filter.h"
 #include "Advanced/XUSGDDSLoader.h"
 
@@ -7,13 +6,6 @@
 using namespace std;
 using namespace DirectX;
 using namespace XUSG;
-
-struct GaussianConstants
-{
-	XMFLOAT2	Focus;
-	float		Sigma;
-	uint32_t	Level;
-};
 
 Filter::Filter(const Device& device) :
 	m_device(device),
@@ -46,8 +38,9 @@ bool Filter::Init(const CommandList& commandList, uint32_t width, uint32_t heigh
 	m_numMips = (max)(static_cast<uint8_t>(log2f(viewportSize) + 1.0f), 1ui8);
 
 	for (auto& image : m_filtered)
-		image.Create(m_device, width, height, DXGI_FORMAT_B8G8R8A8_UNORM, 1,
-			D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, m_numMips);
+		image.Create(m_device, width, height, DXGI_FORMAT_B8G8R8A8_UNORM, 6,
+			D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, m_numMips, 1,
+			D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COMMON, true);
 
 	N_RETURN(createPipelineLayouts(), false);
 	N_RETURN(createPipelines(), false);
@@ -55,21 +48,26 @@ bool Filter::Init(const CommandList& commandList, uint32_t width, uint32_t heigh
 
 	// Copy source
 	{
-		const TextureCopyLocation dst(m_filtered[TABLE_DOWN_SAMPLE].GetResource().get(), 0);
 		const TextureCopyLocation src(source->GetResource().get(), 0);
 
-		ResourceBarrier barriers[2];
-		auto numBarriers = m_filtered[TABLE_DOWN_SAMPLE].SetBarrier(barriers, D3D12_RESOURCE_STATE_COPY_DEST, 0, 0);
-		numBarriers = source->SetBarrier(barriers, D3D12_RESOURCE_STATE_COPY_SOURCE, numBarriers);
+		ResourceBarrier barriers[7];
+		auto numBarriers = source->SetBarrier(barriers, D3D12_RESOURCE_STATE_COPY_SOURCE);
+		for (auto i = 0ui8; i < 6; ++i)
+			numBarriers = m_filtered[TABLE_DOWN_SAMPLE].SetBarrier(barriers, 0, D3D12_RESOURCE_STATE_COPY_DEST, numBarriers, i);
+		
 		commandList.Barrier(numBarriers, barriers);
 
-		commandList.CopyTextureRegion(dst, 0, 0, 0, src);
+		for (auto i = 0ui8; i < 6; ++i)
+		{
+			const TextureCopyLocation dst(m_filtered[TABLE_DOWN_SAMPLE].GetResource().get(), m_numMips * i);
+			commandList.CopyTextureRegion(dst, 0, 0, 0, src);
+		}
 	}
 
 	return true;
 }
 
-void Filter::Process(const CommandList& commandList, XMFLOAT2 focus, float sigma)
+void Filter::Process(const CommandList& commandList, ResourceState dstState)
 {
 	const uint8_t numPasses = m_numMips - 1;
 
@@ -82,20 +80,15 @@ void Filter::Process(const CommandList& commandList, XMFLOAT2 focus, float sigma
 	commandList.SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
 
 	// Generate Mips
-	commandList.SetComputePipelineLayout(m_pipelineLayouts[RESAMPLE]);
-	commandList.SetPipelineState(m_pipelines[RESAMPLE]);
-	commandList.SetComputeDescriptorTable(0, m_samplerTable);
-
-	ResourceBarrier barriers[2];
+	ResourceBarrier barriers[12];
 	auto numBarriers = 0u;
-	const auto dstState = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-	for (auto i = 0ui8; i + 1 < numPasses; ++i)
-		numBarriers = m_filtered[TABLE_DOWN_SAMPLE].Blit(commandList, 8, 8, i + 1, dstState,
-			barriers, m_uavSrvTables[TABLE_DOWN_SAMPLE][i], 1, numBarriers);
-	if (numPasses > 0)
-		numBarriers = m_filtered[TABLE_DOWN_SAMPLE].SetBarrier(barriers, dstState, numBarriers, numPasses - 1);
+	if (numPasses > 0) numBarriers = m_filtered[TABLE_DOWN_SAMPLE].GenerateMips(commandList, barriers,
+		8, 8, 1, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, m_pipelineLayouts[RESAMPLE],
+		m_pipelines[RESAMPLE], m_uavSrvTables[TABLE_DOWN_SAMPLE].data(), 1, m_samplerTable,
+		0, numBarriers, nullptr, 0, 1, numPasses - 1);
 	numBarriers = m_filtered[TABLE_UP_SAMPLE].SetBarrier(barriers, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, numBarriers);
 	commandList.Barrier(numBarriers, barriers);
+	numBarriers = 0;
 
 	commandList.SetComputeDescriptorTable(1, m_uavSrvTables[TABLE_DOWN_SAMPLE][numPasses]);
 	commandList.Dispatch(1, 1, 1);
@@ -105,21 +98,17 @@ void Filter::Process(const CommandList& commandList, XMFLOAT2 focus, float sigma
 	commandList.SetPipelineState(m_pipelines[UP_SAMPLE]);
 	commandList.SetComputeDescriptorTable(0, m_samplerTable);
 
-	GaussianConstants cb = { focus, sigma };
 	for (auto i = 0ui8; i < numPasses; ++i)
 	{
 		const auto c = numPasses - i;
-		cb.Level = c - 1;
-		numBarriers = m_filtered[TABLE_UP_SAMPLE].SetBarrier(barriers,
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
-			D3D12_RESOURCE_STATE_COPY_SOURCE, 0, c);
-		commandList.Barrier(numBarriers, barriers);
-		commandList.SetCompute32BitConstants(2, SizeOfInUint32(GaussianConstants), &cb);
-		m_filtered[TABLE_UP_SAMPLE].Blit(commandList, 8, 8, m_uavSrvTables[TABLE_UP_SAMPLE][i], 1, cb.Level);
+		const auto j = c - 1;
+		commandList.SetCompute32BitConstants(2, SizeOfInUint32(uint32_t), &j);
+		numBarriers = m_filtered[TABLE_UP_SAMPLE].Blit(commandList, barriers, 8, 8, 1,
+			j, c, dstState, m_uavSrvTables[TABLE_UP_SAMPLE][i], 1, numBarriers);
 	}
 }
 
-void Filter::ProcessG(const CommandList& commandList, XMFLOAT2 focus, float sigma)
+void Filter::ProcessG(const CommandList& commandList)
 {
 	const uint8_t numPasses = m_numMips > 0 ? m_numMips - 1 : 0;
 
@@ -138,19 +127,17 @@ void Filter::ProcessG(const CommandList& commandList, XMFLOAT2 focus, float sigm
 
 	ResourceBarrier barriers[2];
 	auto numBarriers = 0u;
-	const auto dstState = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-	for (auto i = 0ui8; i < numPasses; ++i)
-		numBarriers = m_filtered[TABLE_DOWN_SAMPLE].Blit(commandList, 8, 8, i + 1, dstState,
-			barriers, m_uavSrvTables[TABLE_DOWN_SAMPLE][i], 1, numBarriers);
-	numBarriers = m_filtered[TABLE_DOWN_SAMPLE].SetBarrier(barriers, dstState, numBarriers, numPasses);
+	if (numPasses > 0) numBarriers = m_filtered[TABLE_DOWN_SAMPLE].GenerateMips(commandList, barriers,
+		8, 8, 1, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, m_pipelineLayouts[RESAMPLE],
+		m_pipelines[RESAMPLE], m_uavSrvTables[TABLE_DOWN_SAMPLE].data(), 1, m_samplerTable,
+		0, numBarriers);
 	numBarriers = m_filtered[TABLE_UP_SAMPLE].SetBarrier(barriers, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, numBarriers, 0);
 	commandList.Barrier(numBarriers, barriers);
 
 	// Gaussian
-	GaussianConstants cb = { focus, sigma, m_numMips };
 	commandList.SetComputePipelineLayout(m_pipelineLayouts[GAUSSIAN]);
-	commandList.SetCompute32BitConstants(2, SizeOfInUint32(GaussianConstants), &cb);
-	m_filtered[TABLE_UP_SAMPLE].Blit(commandList, 8, 8, m_uavSrvTables[TABLE_UP_SAMPLE][numPasses],
+	commandList.SetCompute32BitConstants(2, SizeOfInUint32(uint32_t), &m_numMips);
+	m_filtered[TABLE_UP_SAMPLE].Blit(commandList, 8, 8, 1, m_uavSrvTables[TABLE_UP_SAMPLE][numPasses],
 		1, 0, nullptr, 0, nullptr, 0, m_pipelines[GAUSSIAN]);
 }
 
@@ -179,7 +166,7 @@ bool Filter::createPipelineLayouts()
 		utilPipelineLayout.SetRange(1, DescriptorType::SRV, 2, 0);
 		utilPipelineLayout.SetRange(1, DescriptorType::UAV, 1, 0, 0,
 			D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE);
-		utilPipelineLayout.SetConstants(2, SizeOfInUint32(GaussianConstants), 0);
+		utilPipelineLayout.SetConstants(2, SizeOfInUint32(uint32_t), 0);
 		X_RETURN(m_pipelineLayouts[UP_SAMPLE], utilPipelineLayout.GetPipelineLayout(
 			m_pipelineLayoutCache, D3D12_ROOT_SIGNATURE_FLAG_NONE, L"UpSamplingLayout"), false);
 	}
@@ -191,7 +178,7 @@ bool Filter::createPipelineLayouts()
 		utilPipelineLayout.SetRange(1, DescriptorType::SRV, 1, 0);
 		utilPipelineLayout.SetRange(1, DescriptorType::UAV, 1, 0, 0,
 			D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE);
-		utilPipelineLayout.SetConstants(2, SizeOfInUint32(GaussianConstants), 0);
+		utilPipelineLayout.SetConstants(2, SizeOfInUint32(uint32_t), 0);
 		X_RETURN(m_pipelineLayouts[GAUSSIAN], utilPipelineLayout.GetPipelineLayout(
 			m_pipelineLayoutCache, D3D12_ROOT_SIGNATURE_FLAG_NONE, L"GaussianLayout"), false);
 	}

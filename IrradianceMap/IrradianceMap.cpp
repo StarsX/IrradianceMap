@@ -16,8 +16,6 @@ using namespace XUSG;
 
 IrradianceMap::IrradianceMap(uint32_t width, uint32_t height, std::wstring name) :
 	DXFramework(width, height, name),
-	m_focus(0.0, 0.0),
-	m_sigma(24.0),
 	m_frameIndex(0),
 	m_showFPS(true)
 {
@@ -166,13 +164,6 @@ void IrradianceMap::OnUpdate()
 	pauseTime = m_isPaused ? totalTime - time : pauseTime;
 	timeStep = m_isPaused ? 0.0f : timeStep;
 	time = totalTime - pauseTime;
-
-	const auto t = 1.6 * time;
-	const float r = static_cast<float>(sin(XM_PIDIV2 * t)) * 0.25f + 0.25f;
-	m_focus.x = r * static_cast<float>(cos(XM_PI * t));
-	m_focus.y = r * static_cast<float>(sin(XM_PI * t));
-
-	m_sigma = 32.0f * (-static_cast<float>(cos(t)) * 0.5f + 0.5f);
 }
 
 // Render the scene.
@@ -227,17 +218,18 @@ void IrradianceMap::PopulateCommandList()
 	ThrowIfFailed(m_commandList.Reset(m_commandAllocators[m_frameIndex], nullptr));
 
 	// Record commands.
-	m_filter->Process(m_commandList, m_focus, m_sigma);		// V-cycle
-	//m_filter->ProcessG(m_commandList, m_focus, m_sigma);	// Naive weighted averaging
+	const auto dstState = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_COPY_SOURCE;
+	m_filter->Process(m_commandList, dstState);	// V-cycle
+	//m_filter->ProcessG(m_commandList);		// Naive weighted averaging
 
 	{
 		const TextureCopyLocation dst(m_renderTargets[m_frameIndex].GetResource().get(), 0);
 		const TextureCopyLocation src(m_filter->GetResult().GetResource().get(), 0);
 
-		ResourceBarrier barriers[2];
+		ResourceBarrier barriers[7];
 		auto numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, D3D12_RESOURCE_STATE_COPY_DEST);
-		numBarriers = m_filter->GetResult().SetBarrier(barriers, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
-			D3D12_RESOURCE_STATE_COPY_SOURCE, numBarriers, 0);
+		for (auto i = 0ui8; i < 6; ++i)
+			numBarriers = m_filter->GetResult().SetBarrier(barriers, 0, dstState, numBarriers, i);
 		m_commandList.Barrier(numBarriers, barriers);
 
 		m_commandList.CopyTextureRegion(dst, 0, 0, 0, src);

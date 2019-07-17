@@ -9,9 +9,7 @@
 //--------------------------------------------------------------------------------------
 cbuffer cb
 {
-	float2	g_focus;
-	float	g_sigma;
-	uint	g_numLevels;
+	uint g_numLevels;
 };
 
 //--------------------------------------------------------------------------------------
@@ -40,9 +38,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
 		srcs[i] = g_txSource.SampleLevel(g_smpLinear, tex, i);
 
 	// Compute deviation
-	const float2 r = (2.0 * tex - 1.0) - g_focus;
-	const float s = saturate(dot(r, r) + 0.25);
-	const float sigma = g_sigma * s;
+	const float sigma = 16.0;
 	const float sigma2 = sigma * sigma;
 
 	float wsum = 0.0;
