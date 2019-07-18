@@ -13,8 +13,11 @@ public:
 	virtual ~Renderer();
 
 	bool Init(const XUSG::CommandList& commandList, uint32_t width, uint32_t height,
+		const std::shared_ptr<XUSG::DescriptorTableCache>& descriptorTableCache,
 		std::vector<XUSG::Resource>& uploaders, const char* fileName, XUSG::Format rtFormat,
 		const DirectX::XMFLOAT4& posScale = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f));
+	bool SetLightProbes(const XUSG::Descriptor& irradiance, const XUSG::Descriptor& radiance);
+
 	void UpdateFrame(uint32_t frameIndex, DirectX::CXMVECTOR eyePt, DirectX::CXMMATRIX viewProj, bool isPaused);
 	void Render(const XUSG::CommandList& commandList, uint32_t frameIndex);
 	void ToneMap(const XUSG::CommandList& commandList, const XUSG::RenderTargetTable& rtvTable,
@@ -27,7 +30,9 @@ protected:
 	{
 		OUTPUT_VIEW,
 		SHADER_RESOURCES,
-		SAMPLER
+		SAMPLER,
+		PS_CONSTANTS,
+		VS_CONSTANTS = OUTPUT_VIEW
 	};
 
 	enum PipelineIndex : uint8_t
@@ -41,6 +46,7 @@ protected:
 
 	enum SRVTable : uint8_t
 	{
+		SRV_TABLE_BASE,
 		SRV_TABLE_TAA,
 		SRV_TABLE_TAA1,
 		SRV_TABLE_TM,
@@ -81,13 +87,6 @@ protected:
 		DirectX::XMFLOAT2	ProjBias;
 	};
 
-	struct SSRConstants
-	{
-		DirectX::XMFLOAT4X4	ViewProj;
-		DirectX::XMFLOAT4X4	ProjToWorld;
-		DirectX::XMFLOAT3	EyePt;
-	};
-
 	bool createVB(const XUSG::CommandList& commandList, uint32_t numVert,
 		uint32_t stride, const uint8_t* pData, std::vector<XUSG::Resource>& uploaders);
 	bool createIB(const XUSG::CommandList& commandList, uint32_t numIndices,
@@ -104,13 +103,12 @@ protected:
 
 	uint32_t	m_numIndices;
 	uint8_t		m_frameParity;
-	uint8_t		m_numMips;
 
 	DirectX::XMUINT2	m_viewport;
 	DirectX::XMFLOAT4	m_posScale;
 	DirectX::XMFLOAT4X4 m_world;
+	DirectX::XMFLOAT3	m_eyePt;
 	BasePassConstants	m_cbBasePass;
-	SSRConstants		m_cbSSReflection;
 
 	XUSG::InputLayout		m_inputLayout;
 	XUSG::PipelineLayout	m_pipelineLayouts[NUM_PIPELINE];
@@ -132,5 +130,5 @@ protected:
 	XUSG::Graphics::PipelineCache	m_graphicsPipelineCache;
 	XUSG::Compute::PipelineCache	m_computePipelineCache;
 	XUSG::PipelineLayoutCache		m_pipelineLayoutCache;
-	XUSG::DescriptorTableCache		m_descriptorTableCache;
+	std::shared_ptr<XUSG::DescriptorTableCache> m_descriptorTableCache;
 };

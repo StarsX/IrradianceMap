@@ -39,7 +39,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	const float4 coarser = g_txCoarser.SampleLevel(g_smpLinear, tex, 0.0);
 
 	// Compute deviation
-	const float sigma = 16.0;
+	const float sigma = 40.0;
 	const float sigma2 = sigma * sigma;
 
 	// Gaussian-approximating Haar coefficients (weights of box filters)

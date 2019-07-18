@@ -12,7 +12,6 @@ Filter::Filter(const Device& device) :
 	m_numMips(11)
 {
 	m_computePipelineCache.SetDevice(device);
-	m_descriptorTableCache.SetDevice(device);
 	m_pipelineLayoutCache.SetDevice(device);
 }
 
@@ -21,8 +20,11 @@ Filter::~Filter()
 }
 
 bool Filter::Init(const CommandList& commandList, uint32_t width, uint32_t height,
-	shared_ptr<ResourceBase>& source, vector<Resource>& uploaders, const wchar_t* fileName)
+	const shared_ptr<DescriptorTableCache>& descriptorTableCache, shared_ptr<ResourceBase>& source,
+	vector<Resource>& uploaders, const wchar_t* fileName)
 {
+	m_descriptorTableCache = descriptorTableCache;
+
 	// Load input image
 	{
 		DDS::Loader textureLoader;
@@ -34,13 +36,14 @@ bool Filter::Init(const CommandList& commandList, uint32_t width, uint32_t heigh
 	}
 
 	// Create resources and pipelines
-	const auto viewportSize = static_cast<float>((max)(width, height));
-	m_numMips = (max)(static_cast<uint8_t>(log2f(viewportSize) + 1.0f), 1ui8);
+	m_numMips = (max)(Log2((max)(width, height)), 2ui8);
 
-	for (auto& image : m_filtered)
-		image.Create(m_device, width, height, DXGI_FORMAT_B8G8R8A8_UNORM, 6,
-			D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, m_numMips, 1,
-			D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COMMON, true);
+	m_filtered[TABLE_DOWN_SAMPLE].Create(m_device, width, height, DXGI_FORMAT_B8G8R8A8_UNORM,
+		6, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, m_numMips - 1, 1,
+		D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COMMON, true);
+	m_filtered[TABLE_UP_SAMPLE].Create(m_device, width, height, DXGI_FORMAT_B8G8R8A8_UNORM,
+		6, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, m_numMips, 1,
+		D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COMMON, true);
 
 	N_RETURN(createPipelineLayouts(), false);
 	N_RETURN(createPipelines(), false);
@@ -59,7 +62,7 @@ bool Filter::Init(const CommandList& commandList, uint32_t width, uint32_t heigh
 
 		for (auto i = 0ui8; i < 6; ++i)
 		{
-			const TextureCopyLocation dst(m_filtered[TABLE_DOWN_SAMPLE].GetResource().get(), m_numMips * i);
+			const TextureCopyLocation dst(m_filtered[TABLE_DOWN_SAMPLE].GetResource().get(), (m_numMips - 1) * i);
 			commandList.CopyTextureRegion(dst, 0, 0, 0, src);
 		}
 	}
@@ -74,8 +77,8 @@ void Filter::Process(const CommandList& commandList, ResourceState dstState)
 	// Set Descriptor pools
 	const DescriptorPool descriptorPools[] =
 	{
-		m_descriptorTableCache.GetDescriptorPool(CBV_SRV_UAV_POOL),
-		m_descriptorTableCache.GetDescriptorPool(SAMPLER_POOL)
+		m_descriptorTableCache->GetDescriptorPool(CBV_SRV_UAV_POOL),
+		m_descriptorTableCache->GetDescriptorPool(SAMPLER_POOL)
 	};
 	commandList.SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
 
@@ -83,9 +86,9 @@ void Filter::Process(const CommandList& commandList, ResourceState dstState)
 	ResourceBarrier barriers[12];
 	auto numBarriers = 0u;
 	if (numPasses > 0) numBarriers = m_filtered[TABLE_DOWN_SAMPLE].GenerateMips(commandList, barriers,
-		8, 8, 1, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, m_pipelineLayouts[RESAMPLE],
-		m_pipelines[RESAMPLE], m_uavSrvTables[TABLE_DOWN_SAMPLE].data(), 1, m_samplerTable,
-		0, numBarriers, nullptr, 0, 1, numPasses - 1);
+		8, 8, 1, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+		m_pipelineLayouts[RESAMPLE], m_pipelines[RESAMPLE], m_uavSrvTables[TABLE_DOWN_SAMPLE].data(),
+		1, m_samplerTable, 0, numBarriers, nullptr, 0, 1, numPasses - 1);
 	numBarriers = m_filtered[TABLE_UP_SAMPLE].SetBarrier(barriers, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, numBarriers);
 	commandList.Barrier(numBarriers, barriers);
 	numBarriers = 0;
@@ -108,42 +111,14 @@ void Filter::Process(const CommandList& commandList, ResourceState dstState)
 	}
 }
 
-void Filter::ProcessG(const CommandList& commandList)
-{
-	const uint8_t numPasses = m_numMips > 0 ? m_numMips - 1 : 0;
-
-	// Set Descriptor pools
-	const DescriptorPool descriptorPools[] =
-	{
-		m_descriptorTableCache.GetDescriptorPool(CBV_SRV_UAV_POOL),
-		m_descriptorTableCache.GetDescriptorPool(SAMPLER_POOL)
-	};
-	commandList.SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
-
-	// Generate Mips
-	commandList.SetComputePipelineLayout(m_pipelineLayouts[RESAMPLE]);
-	commandList.SetPipelineState(m_pipelines[RESAMPLE]);
-	commandList.SetComputeDescriptorTable(0, m_samplerTable);
-
-	ResourceBarrier barriers[2];
-	auto numBarriers = 0u;
-	if (numPasses > 0) numBarriers = m_filtered[TABLE_DOWN_SAMPLE].GenerateMips(commandList, barriers,
-		8, 8, 1, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, m_pipelineLayouts[RESAMPLE],
-		m_pipelines[RESAMPLE], m_uavSrvTables[TABLE_DOWN_SAMPLE].data(), 1, m_samplerTable,
-		0, numBarriers);
-	numBarriers = m_filtered[TABLE_UP_SAMPLE].SetBarrier(barriers, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, numBarriers, 0);
-	commandList.Barrier(numBarriers, barriers);
-
-	// Gaussian
-	commandList.SetComputePipelineLayout(m_pipelineLayouts[GAUSSIAN]);
-	commandList.SetCompute32BitConstants(2, SizeOfInUint32(uint32_t), &m_numMips);
-	m_filtered[TABLE_UP_SAMPLE].Blit(commandList, 8, 8, 1, m_uavSrvTables[TABLE_UP_SAMPLE][numPasses],
-		1, 0, nullptr, 0, nullptr, 0, m_pipelines[GAUSSIAN]);
-}
-
-Texture2D& Filter::GetResult()
+Texture2D& Filter::GetIrradiance()
 {
 	return m_filtered[TABLE_UP_SAMPLE];
+}
+
+Texture2D& Filter::GetRadiance()
+{
+	return m_filtered[TABLE_DOWN_SAMPLE];
 }
 
 bool Filter::createPipelineLayouts()
@@ -171,18 +146,6 @@ bool Filter::createPipelineLayouts()
 			m_pipelineLayoutCache, D3D12_ROOT_SIGNATURE_FLAG_NONE, L"UpSamplingLayout"), false);
 	}
 
-	// Gaussian
-	{
-		Util::PipelineLayout utilPipelineLayout;
-		utilPipelineLayout.SetRange(0, DescriptorType::SAMPLER, 1, 0);
-		utilPipelineLayout.SetRange(1, DescriptorType::SRV, 1, 0);
-		utilPipelineLayout.SetRange(1, DescriptorType::UAV, 1, 0, 0,
-			D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE);
-		utilPipelineLayout.SetConstants(2, SizeOfInUint32(uint32_t), 0);
-		X_RETURN(m_pipelineLayouts[GAUSSIAN], utilPipelineLayout.GetPipelineLayout(
-			m_pipelineLayoutCache, D3D12_ROOT_SIGNATURE_FLAG_NONE, L"GaussianLayout"), false);
-	}
-
 	return true;
 }
 
@@ -208,25 +171,15 @@ bool Filter::createPipelines()
 		X_RETURN(m_pipelines[UP_SAMPLE], state.GetPipeline(m_computePipelineCache, L"UpSampling"), false);
 	}
 
-	// Gaussian
-	{
-		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::CS, GAUSSIAN, L"CSMipGaussian.cso"), false);
-
-		Compute::State state;
-		state.SetPipelineLayout(m_pipelineLayouts[GAUSSIAN]);
-		state.SetShader(m_shaderPool.GetShader(Shader::Stage::CS, GAUSSIAN));
-		X_RETURN(m_pipelines[GAUSSIAN], state.GetPipeline(m_computePipelineCache, L"GAUSSIAN"), false);
-	}
-
 	return true;
 }
 
 bool Filter::createDescriptorTables()
 {
-	const uint8_t numPasses = m_numMips > 0 ? m_numMips - 1 : 0;
+	const uint8_t numPasses = m_numMips - 1;
 	m_uavSrvTables[TABLE_DOWN_SAMPLE].resize(m_numMips);
 	m_uavSrvTables[TABLE_UP_SAMPLE].resize(m_numMips);
-	for (auto i = 0ui8; i < numPasses; ++i)
+	for (auto i = 0ui8; i + 1 < numPasses; ++i)
 	{
 		// Get UAV and SRVs
 		{
@@ -237,9 +190,12 @@ bool Filter::createDescriptorTables()
 			};
 			Util::DescriptorTable utilUavSrvTable;
 			utilUavSrvTable.SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-			X_RETURN(m_uavSrvTables[TABLE_DOWN_SAMPLE][i], utilUavSrvTable.GetCbvSrvUavTable(m_descriptorTableCache), false);
+			X_RETURN(m_uavSrvTables[TABLE_DOWN_SAMPLE][i], utilUavSrvTable.GetCbvSrvUavTable(*m_descriptorTableCache), false);
 		}
+	}
 
+	for (auto i = 0ui8; i < numPasses; ++i)
+	{
 		{
 			const auto coarser = numPasses - i;
 			const auto current = coarser - 1;
@@ -251,7 +207,7 @@ bool Filter::createDescriptorTables()
 			};
 			Util::DescriptorTable utilUavSrvTable;
 			utilUavSrvTable.SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-			X_RETURN(m_uavSrvTables[TABLE_UP_SAMPLE][i], utilUavSrvTable.GetCbvSrvUavTable(m_descriptorTableCache), false);
+			X_RETURN(m_uavSrvTables[TABLE_UP_SAMPLE][i], utilUavSrvTable.GetCbvSrvUavTable(*m_descriptorTableCache), false);
 		}
 	}
 
@@ -264,26 +220,14 @@ bool Filter::createDescriptorTables()
 		};
 		Util::DescriptorTable utilUavSrvTable;
 		utilUavSrvTable.SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-		X_RETURN(m_uavSrvTables[TABLE_DOWN_SAMPLE][numPasses], utilUavSrvTable.GetCbvSrvUavTable(m_descriptorTableCache), false);
-	}
-
-	// Get UAV and SRVs for direct Gaussian
-	{
-		const Descriptor descriptors[] =
-		{
-			m_filtered[TABLE_DOWN_SAMPLE].GetSRV(),
-			m_filtered[TABLE_UP_SAMPLE].GetUAV()
-		};
-		Util::DescriptorTable utilUavSrvTable;
-		utilUavSrvTable.SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-		X_RETURN(m_uavSrvTables[TABLE_UP_SAMPLE][numPasses], utilUavSrvTable.GetCbvSrvUavTable(m_descriptorTableCache), false);
+		X_RETURN(m_uavSrvTables[TABLE_DOWN_SAMPLE][numPasses], utilUavSrvTable.GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 
 	// Create the sampler table
 	Util::DescriptorTable samplerTable;
 	const auto sampler = LINEAR_CLAMP;
-	samplerTable.SetSamplers(0, 1, &sampler, m_descriptorTableCache);
-	X_RETURN(m_samplerTable, samplerTable.GetSamplerTable(m_descriptorTableCache), false);
+	samplerTable.SetSamplers(0, 1, &sampler, *m_descriptorTableCache);
+	X_RETURN(m_samplerTable, samplerTable.GetSamplerTable(*m_descriptorTableCache), false);
 
 	return true;
 }

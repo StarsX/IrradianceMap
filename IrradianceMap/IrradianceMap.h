@@ -13,6 +13,7 @@
 
 #include "StepTimer.h"
 #include "Filter.h"
+#include "Renderer.h"
 
 using namespace DirectX;
 
@@ -33,9 +34,16 @@ public:
 	virtual void OnDestroy();
 
 	virtual void OnKeyUp(uint8_t /*key*/);
+	virtual void OnLButtonDown(float posX, float posY);
+	virtual void OnLButtonUp(float posX, float posY);
+	virtual void OnMouseMove(float posX, float posY);
+	virtual void OnMouseWheel(float deltaZ, float posX, float posY);
+	virtual void OnMouseLeave();
+
+	virtual void ParseCommandLineArgs(wchar_t* argv[], int argc);
 
 private:
-	XUSG::DescriptorTableCache m_descriptorTableCache;
+	std::shared_ptr<XUSG::DescriptorTableCache> m_descriptorTableCache;
 
 	XUSG::SwapChain			m_swapChain;
 	XUSG::CommandAllocator	m_commandAllocators[Filter::FrameCount];
@@ -47,7 +55,13 @@ private:
 
 	// App resources.
 	std::unique_ptr<Filter> m_filter;
+	std::unique_ptr<Renderer> m_renderer;
 	XUSG::RenderTargetTable	m_rtvTables[Filter::FrameCount];
+	XUSG::DepthStencil	m_depth;
+	XMFLOAT4X4			m_proj;
+	XMFLOAT4X4	m_view;
+	XMFLOAT3	m_focusPt;
+	XMFLOAT3	m_eyePt;
 
 	// Synchronization objects.
 	uint32_t	m_frameIndex;
@@ -59,6 +73,14 @@ private:
 	bool		m_showFPS;
 	bool		m_isPaused;
 	StepTimer	m_timer;
+
+	// User camera interactions
+	bool m_tracking;
+	XMFLOAT2 m_mousePt;
+
+	// User external settings
+	std::string m_meshFileName;
+	XMFLOAT4 m_meshPosScale;
 
 	void LoadPipeline();
 	void LoadAssets();

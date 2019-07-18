@@ -14,13 +14,14 @@ public:
 	virtual ~Filter();
 
 	bool Init(const XUSG::CommandList &commandList, uint32_t width, uint32_t height,
+		const std::shared_ptr<XUSG::DescriptorTableCache>& descriptorTableCache,
 		std::shared_ptr<XUSG::ResourceBase> &source, std::vector<XUSG::Resource> &uploaders,
-		const wchar_t *fileName = L"Lenna.dds");
+		const wchar_t *fileName = L"Media/Lenna.dds");
 
 	void Process(const XUSG::CommandList &commandList, XUSG::ResourceState dstState);
-	void ProcessG(const XUSG::CommandList &commandList);
 
-	XUSG::Texture2D &GetResult();
+	XUSG::Texture2D& GetIrradiance();
+	XUSG::Texture2D& GetRadiance();
 
 	static const uint32_t FrameCount = 3;
 
@@ -29,7 +30,6 @@ protected:
 	{
 		RESAMPLE,
 		UP_SAMPLE,
-		GAUSSIAN,
 
 		NUM_PIPELINE
 	};
@@ -51,7 +51,7 @@ protected:
 	XUSG::ShaderPool				m_shaderPool;
 	XUSG::Compute::PipelineCache	m_computePipelineCache;
 	XUSG::PipelineLayoutCache		m_pipelineLayoutCache;
-	XUSG::DescriptorTableCache		m_descriptorTableCache;
+	std::shared_ptr<XUSG::DescriptorTableCache> m_descriptorTableCache;
 
 	XUSG::PipelineLayout	m_pipelineLayouts[NUM_PIPELINE];
 	XUSG::Pipeline			m_pipelines[NUM_PIPELINE];

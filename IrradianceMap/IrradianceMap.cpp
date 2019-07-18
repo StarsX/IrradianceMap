@@ -14,10 +14,18 @@
 using namespace std;
 using namespace XUSG;
 
+const float g_FOVAngleY = XM_PIDIV4;
+const float g_zNear = 1.0f;
+const float g_zFar = 1000.0f;
+
 IrradianceMap::IrradianceMap(uint32_t width, uint32_t height, std::wstring name) :
 	DXFramework(width, height, name),
 	m_frameIndex(0),
-	m_showFPS(true)
+	m_showFPS(true),
+	m_isPaused(false),
+	m_tracking(false),
+	m_meshFileName("Media/bunny.obj"),
+	m_meshPosScale(0.0f, 0.0f, 0.0f, 1.0f)
 {
 }
 
@@ -98,7 +106,7 @@ void IrradianceMap::LoadPipeline()
 	ThrowIfFailed(swapChain.As(&m_swapChain));
 	m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
-	m_descriptorTableCache.SetDevice(m_device);
+	m_descriptorTableCache = make_shared<DescriptorTableCache>(m_device, L"DescriptorTableCache");
 
 	// Create frame resources.
 	// Create a RTV and a command allocator for each frame.
@@ -108,7 +116,7 @@ void IrradianceMap::LoadPipeline()
 
 		Util::DescriptorTable rtvTable;
 		rtvTable.SetDescriptors(0, 1, &m_renderTargets[n].GetRTV());
-		m_rtvTables[n] = rtvTable.GetRtvTable(m_descriptorTableCache);
+		m_rtvTables[n] = rtvTable.GetRtvTable(*m_descriptorTableCache);
 
 		ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocators[n])));
 	}
@@ -126,7 +134,16 @@ void IrradianceMap::LoadAssets()
 
 	shared_ptr<ResourceBase> source;
 	vector<Resource> uploaders(0);
-	if (!m_filter->Init(m_commandList, m_width, m_height, source, uploaders))
+	if (!m_filter->Init(m_commandList, m_width, m_height, m_descriptorTableCache, source, uploaders))
+		ThrowIfFailed(E_FAIL);
+
+	m_renderer = make_unique<Renderer>(m_device);
+	if (!m_renderer) ThrowIfFailed(E_FAIL);
+
+	if (!m_renderer->Init(m_commandList, m_width, m_height, m_descriptorTableCache,
+		uploaders, m_meshFileName.c_str(), DXGI_FORMAT_B8G8R8A8_UNORM, m_meshPosScale))
+		ThrowIfFailed(E_FAIL);
+	if (!m_renderer->SetLightProbes(m_filter->GetIrradiance().GetSRV(), m_filter->GetRadiance().GetSRV()))
 		ThrowIfFailed(E_FAIL);
 
 	// Close the command list and execute it to begin the initial GPU setup.
@@ -150,6 +167,19 @@ void IrradianceMap::LoadAssets()
 		// complete before continuing.
 		WaitForGpu();
 	}
+
+	// Projection
+	const auto aspectRatio = m_width / static_cast<float>(m_height);
+	const auto proj = XMMatrixPerspectiveFovLH(g_FOVAngleY, aspectRatio, g_zNear, g_zFar);
+	XMStoreFloat4x4(&m_proj, proj);
+
+	// View initialization
+	m_focusPt = XMFLOAT3(0.0f, 4.0f, 0.0f);
+	m_eyePt = XMFLOAT3(-8.0f, 12.0f, 14.0f);
+	const auto focusPt = XMLoadFloat3(&m_focusPt);
+	const auto eyePt = XMLoadFloat3(&m_eyePt);
+	const auto view = XMMatrixLookAtLH(eyePt, focusPt, XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f));
+	XMStoreFloat4x4(&m_view, view);
 }
 
 // Update frame-based values.
@@ -164,6 +194,12 @@ void IrradianceMap::OnUpdate()
 	pauseTime = m_isPaused ? totalTime - time : pauseTime;
 	timeStep = m_isPaused ? 0.0f : timeStep;
 	time = totalTime - pauseTime;
+
+	// View
+	const auto eyePt = XMLoadFloat3(&m_eyePt);
+	const auto view = XMLoadFloat4x4(&m_view);
+	const auto proj = XMLoadFloat4x4(&m_proj);
+	m_renderer->UpdateFrame(m_frameIndex, eyePt, view * proj, m_isPaused);
 }
 
 // Render the scene.
@@ -205,6 +241,88 @@ void IrradianceMap::OnKeyUp(uint8_t key)
 	}
 }
 
+// User camera interactions.
+void IrradianceMap::OnLButtonDown(float posX, float posY)
+{
+	m_tracking = true;
+	m_mousePt = XMFLOAT2(posX, posY);
+}
+
+void IrradianceMap::OnLButtonUp(float posX, float posY)
+{
+	m_tracking = false;
+}
+
+void IrradianceMap::OnMouseMove(float posX, float posY)
+{
+	if (m_tracking)
+	{
+		const auto dPos = XMFLOAT2(m_mousePt.x - posX, m_mousePt.y - posY);
+
+		XMFLOAT2 radians;
+		radians.x = XM_2PI * dPos.y / m_height;
+		radians.y = XM_2PI * dPos.x / m_width;
+
+		const auto focusPt = XMLoadFloat3(&m_focusPt);
+		auto eyePt = XMLoadFloat3(&m_eyePt);
+
+		const auto len = XMVectorGetX(XMVector3Length(focusPt - eyePt));
+		auto transform = XMMatrixTranslation(0.0f, 0.0f, -len);
+		transform *= XMMatrixRotationRollPitchYaw(radians.x, radians.y, 0.0f);
+		transform *= XMMatrixTranslation(0.0f, 0.0f, len);
+
+		const auto view = XMLoadFloat4x4(&m_view) * transform;
+		const auto viewInv = XMMatrixInverse(nullptr, view);
+		eyePt = viewInv.r[3];
+
+		XMStoreFloat3(&m_eyePt, eyePt);
+		XMStoreFloat4x4(&m_view, view);
+
+		m_mousePt = XMFLOAT2(posX, posY);
+	}
+}
+
+void IrradianceMap::OnMouseWheel(float deltaZ, float posX, float posY)
+{
+	const auto focusPt = XMLoadFloat3(&m_focusPt);
+	auto eyePt = XMLoadFloat3(&m_eyePt);
+
+	const auto len = XMVectorGetX(XMVector3Length(focusPt - eyePt));
+	const auto transform = XMMatrixTranslation(0.0f, 0.0f, -len * deltaZ / 16.0f);
+
+	const auto view = XMLoadFloat4x4(&m_view) * transform;
+	const auto viewInv = XMMatrixInverse(nullptr, view);
+	eyePt = viewInv.r[3];
+
+	XMStoreFloat3(&m_eyePt, eyePt);
+	XMStoreFloat4x4(&m_view, view);
+}
+
+void IrradianceMap::OnMouseLeave()
+{
+	m_tracking = false;
+}
+
+void IrradianceMap::ParseCommandLineArgs(wchar_t* argv[], int argc)
+{
+	wstring_convert<codecvt_utf8<wchar_t>> converter;
+	DXFramework::ParseCommandLineArgs(argv, argc);
+
+	for (auto i = 1; i < argc; ++i)
+	{
+		if (_wcsnicmp(argv[i], L"-mesh", wcslen(argv[i])) == 0 ||
+			_wcsnicmp(argv[i], L"/mesh", wcslen(argv[i])) == 0)
+		{
+			if (i + 1 < argc) m_meshFileName = converter.to_bytes(argv[i + 1]);
+			m_meshPosScale.x = i + 2 < argc ? static_cast<float>(_wtof(argv[i + 2])) : m_meshPosScale.x;
+			m_meshPosScale.y = i + 3 < argc ? static_cast<float>(_wtof(argv[i + 3])) : m_meshPosScale.y;
+			m_meshPosScale.z = i + 4 < argc ? static_cast<float>(_wtof(argv[i + 4])) : m_meshPosScale.z;
+			m_meshPosScale.w = i + 5 < argc ? static_cast<float>(_wtof(argv[i + 5])) : m_meshPosScale.w;
+			break;
+		}
+	}
+}
+
 void IrradianceMap::PopulateCommandList()
 {
 	// Command list allocators can only be reset when the associated 
@@ -218,26 +336,23 @@ void IrradianceMap::PopulateCommandList()
 	ThrowIfFailed(m_commandList.Reset(m_commandAllocators[m_frameIndex], nullptr));
 
 	// Record commands.
-	const auto dstState = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_COPY_SOURCE;
+	const auto dstState = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 	m_filter->Process(m_commandList, dstState);	// V-cycle
-	//m_filter->ProcessG(m_commandList);		// Naive weighted averaging
 
-	{
-		const TextureCopyLocation dst(m_renderTargets[m_frameIndex].GetResource().get(), 0);
-		const TextureCopyLocation src(m_filter->GetResult().GetResource().get(), 0);
+	ResourceBarrier barriers[6];
+	auto numBarriers = 0u;
+	for (auto i = 0ui8; i < 6; ++i)
+		numBarriers = m_filter->GetIrradiance().SetBarrier(barriers, 0, dstState, numBarriers, i);
+	m_commandList.Barrier(numBarriers, barriers);
 
-		ResourceBarrier barriers[7];
-		auto numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, D3D12_RESOURCE_STATE_COPY_DEST);
-		for (auto i = 0ui8; i < 6; ++i)
-			numBarriers = m_filter->GetResult().SetBarrier(barriers, 0, dstState, numBarriers, i);
-		m_commandList.Barrier(numBarriers, barriers);
+	m_renderer->Render(m_commandList, m_frameIndex);
 
-		m_commandList.CopyTextureRegion(dst, 0, 0, 0, src);
-
-		// Indicate that the back buffer will now be used to present.
-		numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, D3D12_RESOURCE_STATE_PRESENT);
-		m_commandList.Barrier(numBarriers, barriers);
-	}
+	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	m_renderer->ToneMap(m_commandList, m_rtvTables[m_frameIndex], numBarriers, barriers);
+	
+	// Indicate that the back buffer will now be used to present.
+	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, D3D12_RESOURCE_STATE_PRESENT);
+	m_commandList.Barrier(numBarriers, barriers);
 
 	ThrowIfFailed(m_commandList.Close());
 }
