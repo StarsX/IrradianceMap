@@ -294,16 +294,20 @@ bool Renderer::createPipelineLayouts()
 
 bool Renderer::createPipelines(Format rtFormat)
 {
+	auto vsIndex = 0u;
+	auto psIndex = 0u;
+	auto csIndex = 0u;
+
 	// Base pass
 	{
-		const auto vs = m_shaderPool.CreateShader(Shader::Stage::VS, 0, L"VSBasePass.cso");
-		const auto ps = m_shaderPool.CreateShader(Shader::Stage::PS, 0, L"PSBasePass.cso");
+		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::VS, vsIndex, L"VSBasePass.cso"), false);
+		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::PS, psIndex, L"PSBasePass.cso"), false);
 
 		Graphics::State state;
 		state.IASetInputLayout(m_inputLayout);
 		state.SetPipelineLayout(m_pipelineLayouts[BASE_PASS]);
-		state.SetShader(Shader::Stage::VS, vs);
-		state.SetShader(Shader::Stage::PS, ps);
+		state.SetShader(Shader::Stage::VS, m_shaderPool.GetShader(Shader::Stage::VS, vsIndex++));
+		state.SetShader(Shader::Stage::PS, m_shaderPool.GetShader(Shader::Stage::PS, psIndex++));
 		state.IASetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
 		state.OMSetNumRenderTargets(NUM_RENDER_TARGET);
 		state.OMSetRTVFormat(RT_COLOR, DXGI_FORMAT_R16G16B16A16_FLOAT);
@@ -314,23 +318,23 @@ bool Renderer::createPipelines(Format rtFormat)
 
 	// Temporal AA
 	{
-		const auto shader = m_shaderPool.CreateShader(Shader::Stage::CS, 0, L"CSTemporalAA.cso");
+		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::CS, csIndex, L"CSTemporalAA.cso"), false);
 
 		Compute::State state;
 		state.SetPipelineLayout(m_pipelineLayouts[TEMPORAL_AA]);
-		state.SetShader(shader);
+		state.SetShader(m_shaderPool.GetShader(Shader::Stage::CS, csIndex++));
 		X_RETURN(m_pipelines[TEMPORAL_AA], state.GetPipeline(m_computePipelineCache, L"TemporalAA"), false);
 	}
 
 	// Tone mapping
 	{
-		const auto vs = m_shaderPool.CreateShader(Shader::Stage::VS, 1, L"VSScreenQuad.cso");
-		const auto ps = m_shaderPool.CreateShader(Shader::Stage::PS, 1, L"PSToneMap.cso");
+		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
+		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::PS, psIndex, L"PSToneMap.cso"), false);
 
 		Graphics::State state;
 		state.SetPipelineLayout(m_pipelineLayouts[TONE_MAP]);
-		state.SetShader(Shader::Stage::VS, vs);
-		state.SetShader(Shader::Stage::PS, ps);
+		state.SetShader(Shader::Stage::VS, m_shaderPool.GetShader(Shader::Stage::VS, vsIndex++));
+		state.SetShader(Shader::Stage::PS, m_shaderPool.GetShader(Shader::Stage::PS, psIndex++));
 		state.DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineCache);
 		state.IASetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
 		state.OMSetNumRenderTargets(1);

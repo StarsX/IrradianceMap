@@ -38,7 +38,6 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
-#include <map>
 #include <functional>
 #include <wrl.h>
 #include <shellapi.h>
