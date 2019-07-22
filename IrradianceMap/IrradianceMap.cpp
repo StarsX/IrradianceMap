@@ -25,7 +25,7 @@ IrradianceMap::IrradianceMap(uint32_t width, uint32_t height, std::wstring name)
 	m_isPaused(false),
 	m_tracking(false),
 	m_meshFileName("Media/bunny.obj"),
-	m_envFileName(L"Media/sky.dds"),
+	m_envFileName(L"Media/uffizi_cross.dds"),
 	m_meshPosScale(0.0f, 0.0f, 0.0f, 1.0f)
 {
 }
@@ -114,11 +114,6 @@ void IrradianceMap::LoadPipeline()
 	for (auto n = 0u; n < Filter::FrameCount; n++)
 	{
 		N_RETURN(m_renderTargets[n].CreateFromSwapChain(m_device, m_swapChain, n), ThrowIfFailed(E_FAIL));
-
-		Util::DescriptorTable rtvTable;
-		rtvTable.SetDescriptors(0, 1, &m_renderTargets[n].GetRTV());
-		m_rtvTables[n] = rtvTable.GetRtvTable(*m_descriptorTableCache);
-
 		ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocators[n])));
 	}
 }
@@ -354,7 +349,7 @@ void IrradianceMap::PopulateCommandList()
 	m_renderer->Render(m_commandList, m_frameIndex);
 
 	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, D3D12_RESOURCE_STATE_RENDER_TARGET);
-	m_renderer->ToneMap(m_commandList, m_rtvTables[m_frameIndex], numBarriers, barriers);
+	m_renderer->ToneMap(m_commandList, m_renderTargets[m_frameIndex].GetRTV(), numBarriers, barriers);
 	
 	// Indicate that the back buffer will now be used to present.
 	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, D3D12_RESOURCE_STATE_PRESENT);

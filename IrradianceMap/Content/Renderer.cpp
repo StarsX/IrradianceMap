@@ -175,7 +175,7 @@ void Renderer::Render(const CommandList& commandList, uint32_t frameIndex)
 	m_frameParity = !m_frameParity;
 }
 
-void Renderer::ToneMap(const CommandList& commandList, const RenderTargetTable& rtvTable,
+void Renderer::ToneMap(const CommandList& commandList, const Descriptor& rtv,
 	uint32_t numBarriers, ResourceBarrier* pBarriers)
 {
 	numBarriers = m_outputViews[UAV_PP_TAA + m_frameParity].SetBarrier(
@@ -184,7 +184,7 @@ void Renderer::ToneMap(const CommandList& commandList, const RenderTargetTable& 
 	commandList.Barrier(numBarriers, pBarriers);
 
 	// Set render target
-	commandList.OMSetRenderTargets(1, rtvTable, nullptr);
+	commandList.OMSetRenderTargets(1, &rtv);
 
 	// Set descriptor tables
 	commandList.SetGraphicsPipelineLayout(m_pipelineLayouts[TONE_MAP]);
@@ -396,7 +396,7 @@ bool Renderer::createDescriptorTables()
 void Renderer::render(const CommandList& commandList)
 {
 	// Set render target
-	commandList.OMSetRenderTargets(NUM_RENDER_TARGET, m_rtvTable, &m_depth.GetDSV(), true);
+	commandList.OMSetRenderTargets(NUM_RENDER_TARGET, m_rtvTable, &m_depth.GetDSV());
 
 	// Clear render target
 	const float clearColor[4] = {};

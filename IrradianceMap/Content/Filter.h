@@ -62,4 +62,5 @@ protected:
 	XUSG::Texture2D			m_filtered[NUM_UAV_SRV];
 
 	uint8_t					m_numMips;
+	float					m_mapSize;
 };

@@ -5,6 +5,13 @@ using namespace std;
 using namespace DirectX;
 using namespace XUSG;
 
+struct CosConstants
+{
+	float		MapSize;
+	uint32_t	NumLevels;
+	uint32_t	Level;
+};
+
 Filter::Filter(const Device& device) :
 	m_device(device),
 	m_numMips(11)
@@ -37,7 +44,8 @@ bool Filter::Init(const CommandList& commandList, uint32_t width, uint32_t heigh
 	const auto& desc = source->GetResource()->GetDesc();
 	const auto texWidth = static_cast<uint32_t>(desc.Width);
 	const auto& texHeight = desc.Height;
-	m_numMips = (max)(Log2((max)(texWidth, texHeight)), 2ui8);
+	m_numMips = (max)(Log2((max)(texWidth, texHeight)), 1ui8) + 1;
+	m_mapSize = (texWidth + texHeight) * 0.5f;
 
 	m_filtered[TABLE_DOWN_SAMPLE].Create(m_device, texWidth, texHeight, desc.Format,
 		6, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, m_numMips - 1, 1,
@@ -96,20 +104,21 @@ void Filter::Process(const CommandList& commandList, ResourceState dstState)
 	numBarriers = 0;
 
 	commandList.SetComputeDescriptorTable(1, m_uavSrvTables[TABLE_DOWN_SAMPLE][numPasses]);
-	commandList.Dispatch(1, 1, 1);
+	commandList.Dispatch(1, 1, 6);
 
 	// Up sampling
 	commandList.SetComputePipelineLayout(m_pipelineLayouts[UP_SAMPLE]);
 	commandList.SetPipelineState(m_pipelines[UP_SAMPLE]);
 	commandList.SetComputeDescriptorTable(0, m_samplerTable);
 
+	CosConstants cb = { m_mapSize, m_numMips };
 	for (auto i = 0ui8; i < numPasses; ++i)
 	{
 		const auto c = numPasses - i;
-		const auto j = c - 1;
-		commandList.SetCompute32BitConstants(2, SizeOfInUint32(uint32_t), &j);
+		cb.Level = c - 1;
+		commandList.SetCompute32BitConstants(2, SizeOfInUint32(uint32_t), &cb.Level);
 		numBarriers = m_filtered[TABLE_UP_SAMPLE].Blit(commandList, barriers, 8, 8, 1,
-			j, c, dstState, m_uavSrvTables[TABLE_UP_SAMPLE][i], 1, numBarriers);
+			cb.Level, c, dstState, m_uavSrvTables[TABLE_UP_SAMPLE][i], 1, numBarriers);
 	}
 }
 
@@ -143,7 +152,7 @@ bool Filter::createPipelineLayouts()
 		utilPipelineLayout.SetRange(1, DescriptorType::SRV, 2, 0);
 		utilPipelineLayout.SetRange(1, DescriptorType::UAV, 1, 0, 0,
 			D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE);
-		utilPipelineLayout.SetConstants(2, SizeOfInUint32(uint32_t), 0);
+		utilPipelineLayout.SetConstants(2, SizeOfInUint32(CosConstants), 0);
 		X_RETURN(m_pipelineLayouts[UP_SAMPLE], utilPipelineLayout.GetPipelineLayout(
 			m_pipelineLayoutCache, D3D12_ROOT_SIGNATURE_FLAG_NONE, L"UpSamplingLayout"), false);
 	}

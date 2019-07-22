@@ -56,7 +56,6 @@ private:
 	// App resources.
 	std::unique_ptr<Filter> m_filter;
 	std::unique_ptr<Renderer> m_renderer;
-	XUSG::RenderTargetTable	m_rtvTables[Filter::FrameCount];
 	XUSG::DepthStencil	m_depth;
 	XMFLOAT4X4			m_proj;
 	XMFLOAT4X4	m_view;

@@ -20,7 +20,7 @@ public:
 
 	void UpdateFrame(uint32_t frameIndex, DirectX::CXMVECTOR eyePt, DirectX::CXMMATRIX viewProj, bool isPaused);
 	void Render(const XUSG::CommandList& commandList, uint32_t frameIndex);
-	void ToneMap(const XUSG::CommandList& commandList, const XUSG::RenderTargetTable& rtvTable,
+	void ToneMap(const XUSG::CommandList& commandList, const XUSG::Descriptor& rtv,
 		uint32_t numBarriers, XUSG::ResourceBarrier* pBarriers);
 
 	static const uint32_t FrameCount = 3;

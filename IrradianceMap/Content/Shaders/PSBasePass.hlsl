@@ -53,14 +53,11 @@ PSOut main(PSIn input)
 	const float3 viewDir = normalize(g_eyePt - input.WSPos);
 	const float3 lightDir = reflect(-viewDir, norm);
 	//float3 radiance = g_txRadiance.Sample(g_sampler, lightDir);
-	float3 radiance = g_txRadiance.SampleLevel(g_sampler, lightDir, 4.0);
+	float3 radiance = g_txRadiance.SampleLevel(g_sampler, lightDir, 2.0);
 
 	const float2 csPos = input.CSPos.xy / input.CSPos.w;
 	const float2 tsPos = input.TSPos.xy / input.TSPos.w;
 	const min16float2 velocity = min16float2(csPos - tsPos) * min16float2(0.5, -0.5);
-
-	irradiance *= 4.0;
-	radiance *= 4.0;
 
 	//output.Color = min16float4(norm * 0.5 + 0.5, 1.0);
 	output.Color = min16float4(irradiance + 0.04 * radiance, 1.0);
