@@ -12,7 +12,7 @@
 #pragma once
 
 #include "StepTimer.h"
-#include "Filter.h"
+#include "LightProbe.h"
 #include "Renderer.h"
 
 using namespace DirectX;
@@ -43,18 +43,20 @@ public:
 	virtual void ParseCommandLineArgs(wchar_t* argv[], int argc);
 
 private:
+	static const uint32_t FrameCount = 3;
+
 	std::shared_ptr<XUSG::DescriptorTableCache> m_descriptorTableCache;
 
 	XUSG::SwapChain			m_swapChain;
-	XUSG::CommandAllocator	m_commandAllocators[Filter::FrameCount];
+	XUSG::CommandAllocator	m_commandAllocators[FrameCount];
 	XUSG::CommandQueue		m_commandQueue;
 
 	XUSG::Device			m_device;
-	XUSG::RenderTarget		m_renderTargets[Filter::FrameCount];
+	XUSG::RenderTarget		m_renderTargets[FrameCount];
 	XUSG::CommandList		m_commandList;
 
 	// App resources.
-	std::unique_ptr<Filter> m_filter;
+	std::unique_ptr<LightProbe> m_lightProbe;
 	std::unique_ptr<Renderer> m_renderer;
 	XUSG::DepthStencil	m_depth;
 	XMFLOAT4X4			m_proj;
@@ -66,7 +68,7 @@ private:
 	uint32_t	m_frameIndex;
 	HANDLE		m_fenceEvent;
 	XUSG::Fence	m_fence;
-	uint64_t	m_fenceValues[Filter::FrameCount];
+	uint64_t	m_fenceValues[FrameCount];
 
 	// Application state
 	bool		m_showFPS;

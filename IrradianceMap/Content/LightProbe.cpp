@@ -1,4 +1,4 @@
-#include "Filter.h"
+#include "LightProbe.h"
 #include "Advanced/XUSGDDSLoader.h"
 
 using namespace std;
@@ -12,7 +12,7 @@ struct CosConstants
 	uint32_t	Level;
 };
 
-Filter::Filter(const Device& device) :
+LightProbe::LightProbe(const Device& device) :
 	m_device(device),
 	m_numMips(11)
 {
@@ -20,11 +20,11 @@ Filter::Filter(const Device& device) :
 	m_pipelineLayoutCache.SetDevice(device);
 }
 
-Filter::~Filter()
+LightProbe::~LightProbe()
 {
 }
 
-bool Filter::Init(const CommandList& commandList, uint32_t width, uint32_t height,
+bool LightProbe::Init(const CommandList& commandList, uint32_t width, uint32_t height,
 	const shared_ptr<DescriptorTableCache>& descriptorTableCache, shared_ptr<ResourceBase>& source,
 	vector<Resource>& uploaders, const wchar_t* fileName)
 {
@@ -80,7 +80,7 @@ bool Filter::Init(const CommandList& commandList, uint32_t width, uint32_t heigh
 	return true;
 }
 
-void Filter::Process(const CommandList& commandList, ResourceState dstState)
+void LightProbe::Process(const CommandList& commandList, ResourceState dstState)
 {
 	const uint8_t numPasses = m_numMips - 1;
 
@@ -122,17 +122,17 @@ void Filter::Process(const CommandList& commandList, ResourceState dstState)
 	}
 }
 
-Texture2D& Filter::GetIrradiance()
+Texture2D& LightProbe::GetIrradiance()
 {
 	return m_filtered[TABLE_UP_SAMPLE];
 }
 
-Texture2D& Filter::GetRadiance()
+Texture2D& LightProbe::GetRadiance()
 {
 	return m_filtered[TABLE_DOWN_SAMPLE];
 }
 
-bool Filter::createPipelineLayouts()
+bool LightProbe::createPipelineLayouts()
 {
 	// Resampling
 	{
@@ -160,7 +160,7 @@ bool Filter::createPipelineLayouts()
 	return true;
 }
 
-bool Filter::createPipelines()
+bool LightProbe::createPipelines()
 {
 	// Resampling
 	{
@@ -185,7 +185,7 @@ bool Filter::createPipelines()
 	return true;
 }
 
-bool Filter::createDescriptorTables()
+bool LightProbe::createDescriptorTables()
 {
 	const uint8_t numPasses = m_numMips - 1;
 	m_uavSrvTables[TABLE_DOWN_SAMPLE].resize(m_numMips);

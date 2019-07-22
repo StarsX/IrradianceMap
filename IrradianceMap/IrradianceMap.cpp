@@ -83,7 +83,7 @@ void IrradianceMap::LoadPipeline()
 
 	// Describe and create the swap chain.
 	DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-	swapChainDesc.BufferCount = Filter::FrameCount;
+	swapChainDesc.BufferCount = FrameCount;
 	swapChainDesc.Width = m_width;
 	swapChainDesc.Height = m_height;
 	swapChainDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -111,7 +111,7 @@ void IrradianceMap::LoadPipeline()
 
 	// Create frame resources.
 	// Create a RTV and a command allocator for each frame.
-	for (auto n = 0u; n < Filter::FrameCount; n++)
+	for (auto n = 0u; n < FrameCount; n++)
 	{
 		N_RETURN(m_renderTargets[n].CreateFromSwapChain(m_device, m_swapChain, n), ThrowIfFailed(E_FAIL));
 		ThrowIfFailed(m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocators[n])));
@@ -125,12 +125,12 @@ void IrradianceMap::LoadAssets()
 	ThrowIfFailed(m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT,
 		m_commandAllocators[m_frameIndex].get(), nullptr, IID_PPV_ARGS(&m_commandList.GetCommandList())));
 
-	m_filter = make_unique<Filter>(m_device);
-	if (!m_filter) ThrowIfFailed(E_FAIL);
+	m_lightProbe = make_unique<LightProbe>(m_device);
+	if (!m_lightProbe) ThrowIfFailed(E_FAIL);
 
 	shared_ptr<ResourceBase> source;
 	vector<Resource> uploaders(0);
-	if (!m_filter->Init(m_commandList, m_width, m_height, m_descriptorTableCache,
+	if (!m_lightProbe->Init(m_commandList, m_width, m_height, m_descriptorTableCache,
 		source, uploaders, m_envFileName.c_str())) ThrowIfFailed(E_FAIL);
 
 	m_renderer = make_unique<Renderer>(m_device);
@@ -139,7 +139,7 @@ void IrradianceMap::LoadAssets()
 	if (!m_renderer->Init(m_commandList, m_width, m_height, m_descriptorTableCache,
 		uploaders, m_meshFileName.c_str(), DXGI_FORMAT_B8G8R8A8_UNORM, m_meshPosScale))
 		ThrowIfFailed(E_FAIL);
-	if (!m_renderer->SetLightProbes(m_filter->GetIrradiance().GetSRV(), m_filter->GetRadiance().GetSRV()))
+	if (!m_renderer->SetLightProbes(m_lightProbe->GetIrradiance().GetSRV(), m_lightProbe->GetRadiance().GetSRV()))
 		ThrowIfFailed(E_FAIL);
 
 	// Close the command list and execute it to begin the initial GPU setup.
@@ -338,12 +338,12 @@ void IrradianceMap::PopulateCommandList()
 
 	// Record commands.
 	const auto dstState = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-	m_filter->Process(m_commandList, dstState);	// V-cycle
+	m_lightProbe->Process(m_commandList, dstState);	// V-cycle
 
 	ResourceBarrier barriers[6];
 	auto numBarriers = 0u;
 	for (auto i = 0ui8; i < 6; ++i)
-		numBarriers = m_filter->GetIrradiance().SetBarrier(barriers, 0, dstState, numBarriers, i);
+		numBarriers = m_lightProbe->GetIrradiance().SetBarrier(barriers, 0, dstState, numBarriers, i);
 	m_commandList.Barrier(numBarriers, barriers);
 
 	m_renderer->Render(m_commandList, m_frameIndex);

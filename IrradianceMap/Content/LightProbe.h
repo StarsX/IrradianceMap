@@ -7,11 +7,11 @@
 #include "DXFramework.h"
 #include "Core/XUSG.h"
 
-class Filter
+class LightProbe
 {
 public:
-	Filter(const XUSG::Device &device);
-	virtual ~Filter();
+	LightProbe(const XUSG::Device &device);
+	virtual ~LightProbe();
 
 	bool Init(const XUSG::CommandList &commandList, uint32_t width, uint32_t height,
 		const std::shared_ptr<XUSG::DescriptorTableCache>& descriptorTableCache,
@@ -22,8 +22,6 @@ public:
 
 	XUSG::Texture2D& GetIrradiance();
 	XUSG::Texture2D& GetRadiance();
-
-	static const uint32_t FrameCount = 3;
 
 protected:
 	enum PipelineIndex : uint8_t
