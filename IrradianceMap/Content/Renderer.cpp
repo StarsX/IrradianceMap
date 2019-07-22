@@ -6,8 +6,6 @@
 #include "ObjLoader.h"
 #include "Renderer.h"
 
-#define SizeOfInUint32(obj)	DIV_UP(sizeof(obj), sizeof(uint32_t))
-
 using namespace std;
 using namespace DirectX;
 using namespace XUSG;
@@ -144,12 +142,7 @@ void Renderer::UpdateFrame(uint32_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewP
 		angle += !isPaused ? 0.1f * XM_PI / 180.0f : 0.0f;
 		const auto rot = XMMatrixRotationY(angle);
 
-		//const auto n = 256u;
-		//static auto i = 0u;
-		const auto normalMatrix = XMMatrixTranspose(rot);
-		//i = (i + 1) % n;
-
-		const auto world = XMMatrixScaling(m_posScale.w, m_posScale.w, m_posScale.w) * rot *
+		const auto world = XMMatrixScaling(-m_posScale.w, m_posScale.w, m_posScale.w) * rot *
 			XMMatrixTranslation(m_posScale.x, m_posScale.y, m_posScale.z);
 
 		const auto halton = IncrementalHalton();
@@ -160,9 +153,8 @@ void Renderer::UpdateFrame(uint32_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewP
 		};
 		m_cbBasePass.ProjBias = jitter;
 		m_cbBasePass.WorldViewProjPrev = m_cbBasePass.WorldViewProj;
-		XMStoreFloat4x4(&m_world, XMMatrixTranspose(world));
 		XMStoreFloat4x4(&m_cbBasePass.WorldViewProj, XMMatrixTranspose(world * viewProj));
-		XMStoreFloat4x4(&m_cbBasePass.Normal, normalMatrix);
+		XMStoreFloat4x4(&m_cbBasePass.World, XMMatrixTranspose(world));
 	}
 
 	XMStoreFloat3(&m_eyePt, eyePt);
@@ -309,6 +301,7 @@ bool Renderer::createPipelines(Format rtFormat)
 		state.SetShader(Shader::Stage::VS, m_shaderPool.GetShader(Shader::Stage::VS, vsIndex++));
 		state.SetShader(Shader::Stage::PS, m_shaderPool.GetShader(Shader::Stage::PS, psIndex++));
 		state.IASetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
+		state.RSSetState(Graphics::CULL_FRONT, m_graphicsPipelineCache);
 		state.OMSetNumRenderTargets(NUM_RENDER_TARGET);
 		state.OMSetRTVFormat(RT_COLOR, DXGI_FORMAT_R16G16B16A16_FLOAT);
 		state.OMSetRTVFormat(RT_VELOCITY, DXGI_FORMAT_R16G16_FLOAT);

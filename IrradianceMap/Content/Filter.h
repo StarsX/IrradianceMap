@@ -16,7 +16,7 @@ public:
 	bool Init(const XUSG::CommandList &commandList, uint32_t width, uint32_t height,
 		const std::shared_ptr<XUSG::DescriptorTableCache>& descriptorTableCache,
 		std::shared_ptr<XUSG::ResourceBase> &source, std::vector<XUSG::Resource> &uploaders,
-		const wchar_t *fileName = L"Media/Lenna.dds");
+		const wchar_t *fileName);
 
 	void Process(const XUSG::CommandList &commandList, XUSG::ResourceState dstState);
 

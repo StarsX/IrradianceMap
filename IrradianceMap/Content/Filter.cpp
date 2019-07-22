@@ -1,8 +1,6 @@
 #include "Filter.h"
 #include "Advanced/XUSGDDSLoader.h"
 
-#define SizeOfInUint32(obj)	DIV_UP(sizeof(obj), sizeof(uint32_t))
-
 using namespace std;
 using namespace DirectX;
 using namespace XUSG;
@@ -32,16 +30,19 @@ bool Filter::Init(const CommandList& commandList, uint32_t width, uint32_t heigh
 
 		uploaders.push_back(nullptr);
 		N_RETURN(textureLoader.CreateTextureFromFile(m_device, commandList, fileName,
-			8192, true, source, uploaders.back(), &alphaMode), false);
+			8192, false, source, uploaders.back(), &alphaMode), false);
 	}
 
 	// Create resources and pipelines
-	m_numMips = (max)(Log2((max)(width, height)), 2ui8);
+	const auto& desc = source->GetResource()->GetDesc();
+	const auto texWidth = static_cast<uint32_t>(desc.Width);
+	const auto& texHeight = desc.Height;
+	m_numMips = (max)(Log2((max)(texWidth, texHeight)), 2ui8);
 
-	m_filtered[TABLE_DOWN_SAMPLE].Create(m_device, width, height, DXGI_FORMAT_B8G8R8A8_UNORM,
+	m_filtered[TABLE_DOWN_SAMPLE].Create(m_device, texWidth, texHeight, desc.Format,
 		6, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, m_numMips - 1, 1,
 		D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COMMON, true);
-	m_filtered[TABLE_UP_SAMPLE].Create(m_device, width, height, DXGI_FORMAT_B8G8R8A8_UNORM,
+	m_filtered[TABLE_UP_SAMPLE].Create(m_device, texWidth, texHeight, desc.Format,
 		6, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, m_numMips, 1,
 		D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COMMON, true);
 
@@ -51,18 +52,19 @@ bool Filter::Init(const CommandList& commandList, uint32_t width, uint32_t heigh
 
 	// Copy source
 	{
-		const TextureCopyLocation src(source->GetResource().get(), 0);
-
 		ResourceBarrier barriers[7];
 		auto numBarriers = source->SetBarrier(barriers, D3D12_RESOURCE_STATE_COPY_SOURCE);
-		for (auto i = 0ui8; i < 6; ++i)
+		for (auto i = 0ui8; i < desc.DepthOrArraySize; ++i)
 			numBarriers = m_filtered[TABLE_DOWN_SAMPLE].SetBarrier(barriers, 0, D3D12_RESOURCE_STATE_COPY_DEST, numBarriers, i);
 		
 		commandList.Barrier(numBarriers, barriers);
 
-		for (auto i = 0ui8; i < 6; ++i)
+		for (auto i = 0ui8; i < desc.DepthOrArraySize; ++i)
 		{
-			const TextureCopyLocation dst(m_filtered[TABLE_DOWN_SAMPLE].GetResource().get(), (m_numMips - 1) * i);
+			const auto srcSubres = D3D12CalcSubresource(0, i, 0, desc.MipLevels, desc.DepthOrArraySize);
+			const auto dstSubres = D3D12CalcSubresource(0, i, 0, m_numMips - 1, desc.DepthOrArraySize);
+			const TextureCopyLocation src(source->GetResource().get(), srcSubres);
+			const TextureCopyLocation dst(m_filtered[TABLE_DOWN_SAMPLE].GetResource().get(), dstSubres);
 			commandList.CopyTextureRegion(dst, 0, 0, 0, src);
 		}
 	}
@@ -225,7 +227,7 @@ bool Filter::createDescriptorTables()
 
 	// Create the sampler table
 	Util::DescriptorTable samplerTable;
-	const auto sampler = LINEAR_CLAMP;
+	const auto sampler = LINEAR_WRAP;
 	samplerTable.SetSamplers(0, 1, &sampler, *m_descriptorTableCache);
 	X_RETURN(m_samplerTable, samplerTable.GetSamplerTable(*m_descriptorTableCache), false);
 

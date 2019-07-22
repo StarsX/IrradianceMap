@@ -3,9 +3,9 @@
 //--------------------------------------------------------------------------------------
 
 #include "CSCubeMap.hlsli"
-#include "CSMipGaussian.hlsli"
 
-#define MAX_LEVEL_COUNT	12
+#define PI				3.141592654
+#define MAX_LEVEL_COUNT	11
 
 //--------------------------------------------------------------------------------------
 // Constant buffer
@@ -33,17 +33,21 @@ SamplerState	g_smpLinear;
 [numthreads(8, 8, 1)]
 void main(uint3 DTid : SV_DispatchThreadID)
 {
+	float3 dim;
+	g_rwDest.GetDimensions(dim.x, dim.y, dim.z);
+
 	// Fetch the color of the current level and the resolved color at the coarser level
-	const float3 tex = GetCubeTexcoord(DTid, g_rwDest);
+	const float3 tex = GetCubeTexcoord(DTid, dim);
 	const float4 src = g_txSource.SampleLevel(g_smpLinear, tex, 0.0);
 	const float4 coarser = g_txCoarser.SampleLevel(g_smpLinear, tex, 0.0);
 
 	// Compute deviation
-	const float sigma = 40.0;
+	const float sigma = 64.0;
 	const float sigma2 = sigma * sigma;
 
 	// Gaussian-approximating Haar coefficients (weights of box filters)
-#ifdef _PREINTEGRATED_
+#if 1
+//#ifdef _PREINTEGRATED_
 	const float c = 2.0 * PI * sigma2;
 	//const float numerator = pow(16.0, g_level) * log(4.0);
 	//const float denorminator = c * (pow(4.0, g_level) + c);
@@ -55,10 +59,12 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	const float denorminator = c * ((1 << (g_level << 1)) + c);
 	const float weight = saturate(numerator / denorminator);
 #else
+	const float c = PI / (512.0 * 4.0);
+
 	float wsum = 0.0, weight = 0.0;
 	for (uint i = g_level; i < MAX_LEVEL_COUNT; ++i)
 	{
-		const float w = MipGaussianWeight(sigma2, i);
+		const float w = saturate((1 << (g_level * 3)) * log(2.0) * c * sin((1 << g_level) * c));
 		weight = i == g_level ? w : weight;
 		wsum += w;
 	}

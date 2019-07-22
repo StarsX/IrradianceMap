@@ -25,6 +25,7 @@ IrradianceMap::IrradianceMap(uint32_t width, uint32_t height, std::wstring name)
 	m_isPaused(false),
 	m_tracking(false),
 	m_meshFileName("Media/bunny.obj"),
+	m_envFileName(L"Media/sky.dds"),
 	m_meshPosScale(0.0f, 0.0f, 0.0f, 1.0f)
 {
 }
@@ -134,8 +135,8 @@ void IrradianceMap::LoadAssets()
 
 	shared_ptr<ResourceBase> source;
 	vector<Resource> uploaders(0);
-	if (!m_filter->Init(m_commandList, m_width, m_height, m_descriptorTableCache, source, uploaders))
-		ThrowIfFailed(E_FAIL);
+	if (!m_filter->Init(m_commandList, m_width, m_height, m_descriptorTableCache,
+		source, uploaders, m_envFileName.c_str())) ThrowIfFailed(E_FAIL);
 
 	m_renderer = make_unique<Renderer>(m_device);
 	if (!m_renderer) ThrowIfFailed(E_FAIL);
@@ -318,7 +319,12 @@ void IrradianceMap::ParseCommandLineArgs(wchar_t* argv[], int argc)
 			m_meshPosScale.y = i + 3 < argc ? static_cast<float>(_wtof(argv[i + 3])) : m_meshPosScale.y;
 			m_meshPosScale.z = i + 4 < argc ? static_cast<float>(_wtof(argv[i + 4])) : m_meshPosScale.z;
 			m_meshPosScale.w = i + 5 < argc ? static_cast<float>(_wtof(argv[i + 5])) : m_meshPosScale.w;
-			break;
+		}
+
+		if (_wcsnicmp(argv[i], L"-env", wcslen(argv[i])) == 0 ||
+			_wcsnicmp(argv[i], L"/env", wcslen(argv[i])) == 0)
+		{
+			if (i + 1 < argc) m_envFileName = argv[i + 1];
 		}
 	}
 }

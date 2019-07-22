@@ -80,6 +80,7 @@ private:
 
 	// User external settings
 	std::string m_meshFileName;
+	std::wstring m_envFileName;
 	XMFLOAT4 m_meshPosScale;
 
 	void LoadPipeline();

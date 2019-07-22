@@ -21,7 +21,10 @@ SamplerState	g_smpLinear;
 [numthreads(8, 8, 1)]
 void main(uint3 DTid : SV_DispatchThreadID)
 {
-	const float3 tex = GetCubeTexcoord(DTid, g_rwDest);
+	float3 dim;
+	g_rwDest.GetDimensions(dim.x, dim.y, dim.z);
+
+	const float3 tex = GetCubeTexcoord(DTid, dim);
 	const float4 result = g_txSource.SampleLevel(g_smpLinear, tex, 0.0);
 
 	g_rwDest[DTid] = result;

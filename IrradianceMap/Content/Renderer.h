@@ -83,7 +83,7 @@ protected:
 	{
 		DirectX::XMFLOAT4X4	WorldViewProj;
 		DirectX::XMFLOAT4X4	WorldViewProjPrev;
-		DirectX::XMFLOAT4X4	Normal;
+		DirectX::XMFLOAT4X4	World;
 		DirectX::XMFLOAT2	ProjBias;
 	};
 
@@ -106,7 +106,6 @@ protected:
 
 	DirectX::XMUINT2	m_viewport;
 	DirectX::XMFLOAT4	m_posScale;
-	DirectX::XMFLOAT4X4 m_world;
 	DirectX::XMFLOAT3	m_eyePt;
 	BasePassConstants	m_cbBasePass;
 
