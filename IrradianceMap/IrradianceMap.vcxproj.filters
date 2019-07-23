@@ -201,9 +201,6 @@
     <FxCompile Include="Content\Shaders\CSResample.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
-    <FxCompile Include="Content\Shaders\CSUpSample.hlsl">
-      <Filter>Shaders</Filter>
-    </FxCompile>
     <FxCompile Include="Content\Shaders\CSTemporalAA.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
@@ -217,6 +214,9 @@
       <Filter>Shaders</Filter>
     </FxCompile>
     <FxCompile Include="Content\Shaders\PSBasePass.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Content\Shaders\CSCosineUp.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>

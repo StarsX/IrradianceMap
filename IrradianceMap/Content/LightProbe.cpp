@@ -116,7 +116,7 @@ void LightProbe::Process(const CommandList& commandList, ResourceState dstState)
 	{
 		const auto c = numPasses - i;
 		cb.Level = c - 1;
-		commandList.SetCompute32BitConstants(2, SizeOfInUint32(uint32_t), &cb.Level);
+		commandList.SetCompute32BitConstants(2, SizeOfInUint32(cb), &cb);
 		numBarriers = m_filtered[TABLE_UP_SAMPLE].Blit(commandList, barriers, 8, 8, 1,
 			cb.Level, c, dstState, m_uavSrvTables[TABLE_UP_SAMPLE][i], 1, numBarriers);
 	}
@@ -174,7 +174,7 @@ bool LightProbe::createPipelines()
 
 	// Up sampling
 	{
-		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::CS, UP_SAMPLE, L"CSUpSample.cso"), false);
+		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::CS, UP_SAMPLE, L"CSCosineUp.cso"), false);
 
 		Compute::State state;
 		state.SetPipelineLayout(m_pipelineLayouts[UP_SAMPLE]);
