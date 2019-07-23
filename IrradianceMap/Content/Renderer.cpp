@@ -142,7 +142,7 @@ void Renderer::UpdateFrame(uint32_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewP
 		angle += !isPaused ? 0.1f * XM_PI / 180.0f : 0.0f;
 		const auto rot = XMMatrixRotationY(angle);
 
-		const auto world = XMMatrixScaling(-m_posScale.w, m_posScale.w, m_posScale.w) * rot *
+		const auto world = XMMatrixScaling(m_posScale.w, m_posScale.w, m_posScale.w) * rot *
 			XMMatrixTranslation(m_posScale.x, m_posScale.y, m_posScale.z);
 
 		const auto halton = IncrementalHalton();
@@ -158,6 +158,7 @@ void Renderer::UpdateFrame(uint32_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewP
 	}
 
 	XMStoreFloat3(&m_eyePt, eyePt);
+	m_frameParity = !m_frameParity;
 }
 
 void Renderer::Render(const CommandList& commandList, uint32_t frameIndex)
@@ -172,7 +173,6 @@ void Renderer::Render(const CommandList& commandList, uint32_t frameIndex)
 	render(commandList);
 
 	temporalAA(commandList);
-	m_frameParity = !m_frameParity;
 }
 
 void Renderer::ToneMap(const CommandList& commandList, const Descriptor& rtv,
@@ -200,7 +200,7 @@ void Renderer::ToneMap(const CommandList& commandList, const Descriptor& rtv,
 	commandList.RSSetScissorRects(1, &scissorRect);
 
 	commandList.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	commandList.DrawIndexed(3, 1, 0, 0, 0);
+	commandList.Draw(3, 1, 0, 0);
 }
 
 bool Renderer::createVB(const CommandList& commandList, uint32_t numVert,
@@ -301,7 +301,6 @@ bool Renderer::createPipelines(Format rtFormat)
 		state.SetShader(Shader::Stage::VS, m_shaderPool.GetShader(Shader::Stage::VS, vsIndex++));
 		state.SetShader(Shader::Stage::PS, m_shaderPool.GetShader(Shader::Stage::PS, psIndex++));
 		state.IASetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
-		state.RSSetState(Graphics::CULL_FRONT, m_graphicsPipelineCache);
 		state.OMSetNumRenderTargets(NUM_RENDER_TARGET);
 		state.OMSetRTVFormat(RT_COLOR, DXGI_FORMAT_R16G16B16A16_FLOAT);
 		state.OMSetRTVFormat(RT_VELOCITY, DXGI_FORMAT_R16G16_FLOAT);
@@ -399,9 +398,10 @@ void Renderer::render(const CommandList& commandList)
 	commandList.OMSetRenderTargets(NUM_RENDER_TARGET, m_rtvTable, &m_depth.GetDSV());
 
 	// Clear render target
-	const float clearColor[4] = {};
+	const float clearColor[4] = { 0.2f, 0.2f, 0.7f, 0.0f };
+	const float clearColorNull[4] = {};
 	commandList.ClearRenderTargetView(m_renderTargets[RT_COLOR].GetRTV(), clearColor);
-	commandList.ClearRenderTargetView(m_renderTargets[RT_VELOCITY].GetRTV(), clearColor);
+	commandList.ClearRenderTargetView(m_renderTargets[RT_VELOCITY].GetRTV(), clearColorNull);
 	commandList.ClearDepthStencilView(m_depth.GetDSV(), D3D12_CLEAR_FLAG_DEPTH, 1.0f);
 
 	// Set pipeline state

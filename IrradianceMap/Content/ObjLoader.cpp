@@ -16,7 +16,7 @@ ObjLoader::~ObjLoader()
 {
 }
 
-bool ObjLoader::Import(const char* pszFilename, const bool recomputeNorm, const bool needBound)
+bool ObjLoader::Import(const char* pszFilename, bool recomputeNorm, bool needBound, bool forDX)
 {
 	FILE* pFile;
 	fopen_s(&pFile, pszFilename, "r");
@@ -26,7 +26,7 @@ bool ObjLoader::Import(const char* pszFilename, const bool recomputeNorm, const 
 	// Import the OBJ file.
 	importGeometryFirstPass(pFile);
 	rewind(pFile);
-	importGeometrySecondPass(pFile);
+	importGeometrySecondPass(pFile, forDX);
 	fclose(pFile);
 
 	// Perform post import tasks.
@@ -159,7 +159,7 @@ void ObjLoader::importGeometryFirstPass(FILE* pFile)
 	if (hasNormal) VEC_ALLOC(m_nIndices, numIdx);
 }
 
-void ObjLoader::importGeometrySecondPass(FILE* pFile)
+void ObjLoader::importGeometrySecondPass(FILE* pFile, bool forDX)
 {
 	auto numVert = 0u;
 	auto numTri = 0u;
@@ -180,6 +180,9 @@ void ObjLoader::importGeometrySecondPass(FILE* pFile)
 					&m_vertices[numVert].m_position.x,
 					&m_vertices[numVert].m_position.y,
 					&m_vertices[numVert].m_position.z);
+				m_vertices[numVert].m_position.z = forDX ?
+					-m_vertices[numVert].m_position.z :
+					m_vertices[numVert].m_position.z;
 				++numVert;
 				break;
 			default:
@@ -192,6 +195,13 @@ void ObjLoader::importGeometrySecondPass(FILE* pFile)
 			break;
 		}
 	}
+
+	if (forDX)
+	{
+		reverse(m_indices.begin(), m_indices.end());
+		reverse(m_nIndices.begin(), m_nIndices.end());
+		reverse(m_tIndices.begin(), m_tIndices.end());
+	}
 }
 
 void ObjLoader::loadIndex(FILE* pFile, uint32_t& numTri)
@@ -202,7 +212,7 @@ void ObjLoader::loadIndex(FILE* pFile, uint32_t& numTri)
 
 	const auto numVert = static_cast<uint32_t>(m_vertices.size());
 
-	for (auto i = 0ui8; i < 3u; ++i)
+	for (auto i = 0ui8; i < 3; ++i)
 	{
 		fscanf_s(pFile, "%u", &v[i]);
 		v[i] = (v[i] < 0) ? v[i] + numVert - 1 : v[i] - 1;
@@ -266,8 +276,8 @@ void ObjLoader::computeNormal()
 {
 	float3 e1, e2, n;
 
-	const auto uNumTri = static_cast<uint32_t>(m_indices.size()) / 3;
-	for (auto i = 0u; i < uNumTri; i++)
+	const auto numTri = static_cast<uint32_t>(m_indices.size()) / 3;
+	for (auto i = 0u; i < numTri; i++)
 	{
 		const auto pv0 = &m_vertices[m_indices[i * 3]].m_position;
 		const auto pv1 = &m_vertices[m_indices[i * 3 + 1]].m_position;

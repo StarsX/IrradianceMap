@@ -14,7 +14,7 @@
 _Use_decl_annotations_
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow)
 {
-	IrradianceMap irradianceMap(512, 512, L"DirectX 12 Irradiance Mapping");
+	IrradianceMap irradianceMap(800, 600, L"DirectX 12 Irradiance Mapping");
 
 	return Win32Application::Run(&irradianceMap, hInstance, nCmdShow);
 }
