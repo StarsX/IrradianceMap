@@ -23,7 +23,7 @@ struct PSOut
 //--------------------------------------------------------------------------------------
 // Constant buffer
 //--------------------------------------------------------------------------------------
-cbuffer cbPerObject
+cbuffer cbPerFrame
 {
 	float3 g_eyePt;
 };
@@ -31,8 +31,8 @@ cbuffer cbPerObject
 //--------------------------------------------------------------------------------------
 // Textures
 //--------------------------------------------------------------------------------------
-TextureCube<float3>	g_txIrradiance	: register (t0);
-TextureCube<float3>	g_txRadiance	: register (t1);
+TextureCube<float3>	g_txRadiance	: register (t0);
+TextureCube<float3>	g_txIrradiance	: register (t1);
 
 //--------------------------------------------------------------------------------------
 // Samplers
@@ -67,7 +67,7 @@ PSOut main(PSIn input)
 
 	const min16float3 viewDir = min16float3(normalize(g_eyePt - input.WSPos));
 	const min16float3 lightDir = reflect(-viewDir, norm);
-	//float3 radiance = g_txRadiance.Sample(g_sampler, lightDir);
+	//float3 radiance = g_txRadiance.SampleBias(g_sampler, lightDir, 2.0);
 	float3 radiance = g_txRadiance.SampleLevel(g_sampler, lightDir, 2.0);
 
 	const float2 csPos = input.CSPos.xy / input.CSPos.w;
@@ -77,7 +77,7 @@ PSOut main(PSIn input)
 	// Specular
 	const min16float roughness = 0.4;
 	const min16float viewAmt = saturate(dot(norm, viewDir));
-#if 0
+#if _NO_PREINTEGRATED_
 	const min16float a = roughness * roughness;
 	const min16float k = a * 0.5;
 	const min16float fresnel = Fresnel(viewAmt, 0.04);

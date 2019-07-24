@@ -29,13 +29,14 @@ protected:
 		OUTPUT_VIEW,
 		SHADER_RESOURCES,
 		SAMPLER,
-		PS_CONSTANTS,
-		VS_CONSTANTS = OUTPUT_VIEW
+		VS_CONSTANTS,
+		PS_CONSTANTS = OUTPUT_VIEW
 	};
 
 	enum PipelineIndex : uint8_t
 	{
 		BASE_PASS,
+		ENVIRONMENT,
 		TEMPORAL_AA,
 		TONE_MAP,
 
@@ -85,6 +86,13 @@ protected:
 		DirectX::XMFLOAT2	ProjBias;
 	};
 
+	struct PerFrameConstants
+	{
+		DirectX::XMFLOAT4	EyePt;
+		DirectX::XMFLOAT4X4	ScreenToWorld;
+		DirectX::XMFLOAT2	Viewport;
+	};
+
 	bool createVB(const XUSG::CommandList& commandList, uint32_t numVert,
 		uint32_t stride, const uint8_t* pData, std::vector<XUSG::Resource>& uploaders);
 	bool createIB(const XUSG::CommandList& commandList, uint32_t numIndices,
@@ -95,6 +103,7 @@ protected:
 	bool createDescriptorTables();
 
 	void render(const XUSG::CommandList& commandList);
+	void environment(const XUSG::CommandList& commandList);
 	void temporalAA(const XUSG::CommandList& commandList);
 
 	XUSG::Device m_device;
@@ -104,8 +113,8 @@ protected:
 
 	DirectX::XMUINT2	m_viewport;
 	DirectX::XMFLOAT4	m_posScale;
-	DirectX::XMFLOAT3	m_eyePt;
 	BasePassConstants	m_cbBasePass;
+	PerFrameConstants	m_cbPerFrame;
 
 	XUSG::InputLayout		m_inputLayout;
 	XUSG::PipelineLayout	m_pipelineLayouts[NUM_PIPELINE];

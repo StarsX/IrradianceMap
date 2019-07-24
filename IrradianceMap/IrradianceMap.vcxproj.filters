@@ -219,5 +219,8 @@
     <FxCompile Include="Content\Shaders\CSCosineUp.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
+    <FxCompile Include="Content\Shaders\PSEnvironment.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

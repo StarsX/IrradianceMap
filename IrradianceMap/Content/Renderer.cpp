@@ -17,8 +17,6 @@ Renderer::Renderer(const Device& device) :
 	m_graphicsPipelineCache.SetDevice(device);
 	m_computePipelineCache.SetDevice(device);
 	m_pipelineLayoutCache.SetDevice(device);
-
-	//m_descriptorTableCache.SetName(L"DescriptorTableCache");
 }
 
 Renderer::~Renderer()
@@ -68,7 +66,7 @@ bool Renderer::Init(const CommandList& commandList, uint32_t width, uint32_t hei
 
 bool Renderer::SetLightProbes(const Descriptor& irradiance, const Descriptor& radiance)
 {
-	const Descriptor descriptors[] = { irradiance, radiance };
+	const Descriptor descriptors[] = { radiance, irradiance };
 	Util::DescriptorTable descriptorTable;
 	descriptorTable.SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
 	X_RETURN(m_srvTables[SRV_TABLE_BASE], descriptorTable.GetCbvSrvUavTable(*m_descriptorTableCache), false);
@@ -135,8 +133,6 @@ static const XMFLOAT2& IncrementalHalton()
 
 void Renderer::UpdateFrame(uint32_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewProj, bool isPaused)
 {
-	auto projToWorld = XMMatrixInverse(nullptr, viewProj);
-	projToWorld = XMMatrixTranspose(projToWorld);
 	{
 		static auto angle = 0.0f;
 		angle += !isPaused ? 0.1f * XM_PI / 180.0f : 0.0f;
@@ -157,7 +153,14 @@ void Renderer::UpdateFrame(uint32_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewP
 		XMStoreFloat4x4(&m_cbBasePass.World, XMMatrixTranspose(world));
 	}
 
-	XMStoreFloat3(&m_eyePt, eyePt);
+	{
+		const auto projToWorld = XMMatrixInverse(nullptr, viewProj);
+		XMStoreFloat4x4(&m_cbPerFrame.ScreenToWorld, XMMatrixTranspose(projToWorld));
+		XMStoreFloat4(&m_cbPerFrame.EyePt, eyePt);
+		m_cbPerFrame.Viewport.x = static_cast<float>(m_viewport.x);
+		m_cbPerFrame.Viewport.y = static_cast<float>(m_viewport.y);
+	}
+
 	m_frameParity = !m_frameParity;
 }
 
@@ -171,6 +174,7 @@ void Renderer::Render(const CommandList& commandList, uint32_t frameIndex)
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, numBarriers, 0xffffffff, D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
 	commandList.Barrier(numBarriers, barriers);
 	render(commandList);
+	environment(commandList);
 
 	temporalAA(commandList);
 }
@@ -261,6 +265,18 @@ bool Renderer::createPipelineLayouts()
 			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, L"BasePassLayout"), false);
 	}
 
+	// This is a pipeline layout for drawing environment
+	{
+		Util::PipelineLayout pipelineLayout;
+		pipelineLayout.SetConstants(PS_CONSTANTS, SizeOfInUint32(PerFrameConstants), 0, 0, Shader::Stage::PS);
+		pipelineLayout.SetRange(SHADER_RESOURCES, DescriptorType::SRV, 1, 0);
+		pipelineLayout.SetShaderStage(SHADER_RESOURCES, Shader::Stage::PS);
+		pipelineLayout.SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout.SetShaderStage(SAMPLER, Shader::PS);
+		X_RETURN(m_pipelineLayouts[ENVIRONMENT], pipelineLayout.GetPipelineLayout(m_pipelineLayoutCache,
+			D3D12_ROOT_SIGNATURE_FLAG_NONE, L"EnvironmentLayout"), false);
+	}
+
 	// This is a pipeline layout for temporal AA
 	{
 		Util::PipelineLayout pipelineLayout;
@@ -308,6 +324,23 @@ bool Renderer::createPipelines(Format rtFormat)
 		X_RETURN(m_pipelines[BASE_PASS], state.GetPipeline(m_graphicsPipelineCache, L"BasePass"), false);
 	}
 
+	// Environment
+	N_RETURN(m_shaderPool.CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
+	{
+		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::PS, psIndex, L"PSEnvironment.cso"), false);
+
+		Graphics::State state;
+		state.SetPipelineLayout(m_pipelineLayouts[ENVIRONMENT]);
+		state.SetShader(Shader::Stage::VS, m_shaderPool.GetShader(Shader::Stage::VS, vsIndex));
+		state.SetShader(Shader::Stage::PS, m_shaderPool.GetShader(Shader::Stage::PS, psIndex++));
+		state.DSSetState(Graphics::DEPTH_READ_LESS_EQUAL, m_graphicsPipelineCache);
+		state.IASetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
+		state.OMSetNumRenderTargets(1);
+		state.OMSetRTVFormat(RT_COLOR, DXGI_FORMAT_R16G16B16A16_FLOAT);
+		state.OMSetDSVFormat(DXGI_FORMAT_D24_UNORM_S8_UINT);
+		X_RETURN(m_pipelines[ENVIRONMENT], state.GetPipeline(m_graphicsPipelineCache, L"Environment"), false);
+	}
+
 	// Temporal AA
 	{
 		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::CS, csIndex, L"CSTemporalAA.cso"), false);
@@ -320,7 +353,6 @@ bool Renderer::createPipelines(Format rtFormat)
 
 	// Tone mapping
 	{
-		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
 		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::PS, psIndex, L"PSToneMap.cso"), false);
 
 		Graphics::State state;
@@ -418,7 +450,7 @@ void Renderer::render(const CommandList& commandList)
 
 	// Set descriptor tables
 	commandList.SetGraphics32BitConstants(VS_CONSTANTS, SizeOfInUint32(m_cbBasePass), &m_cbBasePass);
-	commandList.SetGraphics32BitConstants(PS_CONSTANTS, SizeOfInUint32(m_eyePt), &m_eyePt);
+	commandList.SetGraphics32BitConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT3), &m_cbPerFrame);
 	commandList.SetGraphicsDescriptorTable(SHADER_RESOURCES, m_srvTables[SRV_TABLE_BASE]);
 	commandList.SetGraphicsDescriptorTable(SAMPLER, m_samplerTable);
 
@@ -426,6 +458,24 @@ void Renderer::render(const CommandList& commandList)
 	commandList.IASetIndexBuffer(m_indexBuffer.GetIBV());
 
 	commandList.DrawIndexed(m_numIndices, 1, 0, 0, 0);
+}
+
+void Renderer::environment(const CommandList& commandList)
+{
+	// Set render target
+	commandList.OMSetRenderTargets(1, m_rtvTable.get(), &m_depth.GetDSV());
+
+	// Set descriptor tables
+	commandList.SetGraphicsPipelineLayout(m_pipelineLayouts[ENVIRONMENT]);
+	commandList.SetGraphics32BitConstants(PS_CONSTANTS, SizeOfInUint32(m_cbPerFrame), &m_cbPerFrame);
+	commandList.SetGraphicsDescriptorTable(SHADER_RESOURCES, m_srvTables[SRV_TABLE_BASE]);
+	commandList.SetGraphicsDescriptorTable(SAMPLER, m_samplerTable);
+
+	// Set pipeline state
+	commandList.SetPipelineState(m_pipelines[ENVIRONMENT]);
+
+	commandList.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	commandList.Draw(3, 1, 0, 0);
 }
 
 void Renderer::temporalAA(const CommandList& commandList)
