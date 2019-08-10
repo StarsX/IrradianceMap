@@ -44,7 +44,7 @@ bool Renderer::Init(const CommandList& commandList, uint32_t width, uint32_t hei
 		1, 1, D3D12_RESOURCE_STATE_COMMON, nullptr, false, L"Color");
 	m_renderTargets[RT_VELOCITY].Create(m_device, width, height, DXGI_FORMAT_R16G16_FLOAT, 1, D3D12_RESOURCE_FLAG_NONE,
 		1, 1, D3D12_RESOURCE_STATE_COMMON, nullptr, false, L"Velocity");
-	m_depth.Create(m_device, width, height, DXGI_FORMAT_R24_UNORM_X8_TYPELESS, D3D12_RESOURCE_FLAG_NONE,
+	m_depth.Create(m_device, width, height, DXGI_FORMAT_D24_UNORM_S8_UINT, D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE,
 		1, 1, 1, D3D12_RESOURCE_STATE_COMMON, 1.0f, 0, false, L"Depth");
 
 	// Temporal AA
@@ -164,7 +164,7 @@ void Renderer::UpdateFrame(uint32_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewP
 	m_frameParity = !m_frameParity;
 }
 
-void Renderer::Render(const CommandList& commandList, uint32_t frameIndex)
+void Renderer::Render(const CommandList& commandList, uint32_t frameIndex, bool needClear)
 {
 	ResourceBarrier barriers[4];
 	auto numBarriers = m_renderTargets[RT_COLOR].SetBarrier(barriers, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -173,7 +173,7 @@ void Renderer::Render(const CommandList& commandList, uint32_t frameIndex)
 	numBarriers = m_outputViews[UAV_PP_TAA + !m_frameParity].SetBarrier(barriers, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, numBarriers, 0xffffffff, D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
 	commandList.Barrier(numBarriers, barriers);
-	render(commandList);
+	render(commandList, needClear);
 	environment(commandList);
 
 	temporalAA(commandList);
@@ -424,7 +424,7 @@ bool Renderer::createDescriptorTables()
 	return true;
 }
 
-void Renderer::render(const CommandList& commandList)
+void Renderer::render(const CommandList& commandList, bool needClear)
 {
 	// Set render target
 	commandList.OMSetRenderTargets(NUM_RENDER_TARGET, m_rtvTable, &m_depth.GetDSV());
@@ -432,7 +432,7 @@ void Renderer::render(const CommandList& commandList)
 	// Clear render target
 	const float clearColor[4] = { 0.2f, 0.2f, 0.7f, 0.0f };
 	const float clearColorNull[4] = {};
-	commandList.ClearRenderTargetView(m_renderTargets[RT_COLOR].GetRTV(), clearColor);
+	if (needClear) commandList.ClearRenderTargetView(m_renderTargets[RT_COLOR].GetRTV(), clearColor);
 	commandList.ClearRenderTargetView(m_renderTargets[RT_VELOCITY].GetRTV(), clearColorNull);
 	commandList.ClearDepthStencilView(m_depth.GetDSV(), D3D12_CLEAR_FLAG_DEPTH, 1.0f);
 

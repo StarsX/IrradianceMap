@@ -15,9 +15,10 @@ public:
 
 	bool Init(const XUSG::CommandList &commandList, uint32_t width, uint32_t height,
 		const std::shared_ptr<XUSG::DescriptorTableCache>& descriptorTableCache,
-		std::shared_ptr<XUSG::ResourceBase> &source, std::vector<XUSG::Resource> &uploaders,
-		const wchar_t *fileName);
+		std::vector<XUSG::Resource> &uploaders, const std::wstring pFileNames[],
+		uint32_t numFiles);
 
+	void UpdateFrame(double time);
 	void Process(const XUSG::CommandList &commandList, XUSG::ResourceState dstState);
 
 	XUSG::Texture2D& GetIrradiance();
@@ -26,6 +27,7 @@ public:
 protected:
 	enum PipelineIndex : uint8_t
 	{
+		RADIANCE,
 		RESAMPLE,
 		UP_SAMPLE,
 
@@ -44,6 +46,9 @@ protected:
 	bool createPipelines();
 	bool createDescriptorTables();
 
+	void generateRadiance(const XUSG::CommandList& commandList);
+	void process(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
+
 	XUSG::Device m_device;
 
 	XUSG::ShaderPool				m_shaderPool;
@@ -55,10 +60,14 @@ protected:
 	XUSG::Pipeline			m_pipelines[NUM_PIPELINE];
 
 	std::vector<XUSG::DescriptorTable> m_uavSrvTables[NUM_UAV_SRV];
+	std::vector<XUSG::DescriptorTable> m_srvTables;
+	XUSG::DescriptorTable	m_uavTable;
 	XUSG::DescriptorTable	m_samplerTable;
 
+	std::vector<std::shared_ptr<XUSG::ResourceBase>> m_sources;
 	XUSG::Texture2D			m_filtered[NUM_UAV_SRV];
 
 	uint8_t					m_numMips;
 	float					m_mapSize;
+	double					m_time;
 };

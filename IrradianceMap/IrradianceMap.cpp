@@ -25,9 +25,16 @@ IrradianceMap::IrradianceMap(uint32_t width, uint32_t height, std::wstring name)
 	m_isPaused(false),
 	m_tracking(false),
 	m_meshFileName("Media/bunny.obj"),
-	m_envFileName(L"Media/uffizi_cross.dds"),
 	m_meshPosScale(0.0f, 0.0f, 0.0f, 1.0f)
 {
+	m_envFileNames =
+	{
+		L"Media/uffizi_cross.dds",
+		L"Media/grace_cross.dds",
+		L"Media/rnl_cross.dds",
+		L"Media/galileo_cross.dds",
+		L"Media/stpeters_cross.dds"
+	};
 }
 
 void IrradianceMap::OnInit()
@@ -131,7 +138,8 @@ void IrradianceMap::LoadAssets()
 	shared_ptr<ResourceBase> source;
 	vector<Resource> uploaders(0);
 	if (!m_lightProbe->Init(m_commandList, m_width, m_height, m_descriptorTableCache,
-		source, uploaders, m_envFileName.c_str())) ThrowIfFailed(E_FAIL);
+		uploaders, m_envFileNames.data(), static_cast<uint32_t>(m_envFileNames.size())))
+		ThrowIfFailed(E_FAIL);
 
 	m_renderer = make_unique<Renderer>(m_device);
 	if (!m_renderer) ThrowIfFailed(E_FAIL);
@@ -195,6 +203,7 @@ void IrradianceMap::OnUpdate()
 	const auto eyePt = XMLoadFloat3(&m_eyePt);
 	const auto view = XMLoadFloat4x4(&m_view);
 	const auto proj = XMLoadFloat4x4(&m_proj);
+	m_lightProbe->UpdateFrame(time);
 	m_renderer->UpdateFrame(m_frameIndex, eyePt, view * proj, m_isPaused);
 }
 
@@ -319,7 +328,9 @@ void IrradianceMap::ParseCommandLineArgs(wchar_t* argv[], int argc)
 		if (_wcsnicmp(argv[i], L"-env", wcslen(argv[i])) == 0 ||
 			_wcsnicmp(argv[i], L"/env", wcslen(argv[i])) == 0)
 		{
-			if (i + 1 < argc) m_envFileName = argv[i + 1];
+			m_envFileNames.clear();
+			for (auto j = i + 1; j < argc; ++j)
+				m_envFileNames.push_back(argv[j]);
 		}
 	}
 }

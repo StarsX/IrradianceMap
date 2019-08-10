@@ -25,32 +25,37 @@ LightProbe::~LightProbe()
 }
 
 bool LightProbe::Init(const CommandList& commandList, uint32_t width, uint32_t height,
-	const shared_ptr<DescriptorTableCache>& descriptorTableCache, shared_ptr<ResourceBase>& source,
-	vector<Resource>& uploaders, const wchar_t* fileName)
+	const shared_ptr<DescriptorTableCache>& descriptorTableCache, vector<Resource>& uploaders,
+	const wstring pFileNames[], uint32_t numFiles)
 {
 	m_descriptorTableCache = descriptorTableCache;
 
 	// Load input image
+	auto texWidth = 1u, texHeight = 1u;
+	m_sources.resize(numFiles);
+	for (auto i = 0u; i < numFiles; ++i)
 	{
 		DDS::Loader textureLoader;
 		DDS::AlphaMode alphaMode;
 
 		uploaders.push_back(nullptr);
-		N_RETURN(textureLoader.CreateTextureFromFile(m_device, commandList, fileName,
-			8192, false, source, uploaders.back(), &alphaMode), false);
+		N_RETURN(textureLoader.CreateTextureFromFile(m_device, commandList, pFileNames[i].c_str(),
+			8192, false, m_sources[i], uploaders.back(), &alphaMode), false);
+
+		const auto& desc = m_sources[i]->GetResource()->GetDesc();
+		texWidth = (max)(static_cast<uint32_t>(desc.Width), texWidth);
+		texHeight = (max)(desc.Height, texHeight);
 	}
 
 	// Create resources and pipelines
-	const auto& desc = source->GetResource()->GetDesc();
-	const auto texWidth = static_cast<uint32_t>(desc.Width);
-	const auto& texHeight = desc.Height;
 	m_numMips = (max)(Log2((max)(texWidth, texHeight)), 1ui8) + 1;
 	m_mapSize = (texWidth + texHeight) * 0.5f;
 
-	m_filtered[TABLE_DOWN_SAMPLE].Create(m_device, texWidth, texHeight, desc.Format,
+	const auto format = DXGI_FORMAT_R11G11B10_FLOAT;
+	m_filtered[TABLE_DOWN_SAMPLE].Create(m_device, texWidth, texHeight, format,
 		6, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, m_numMips - 1, 1,
 		D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COMMON, true);
-	m_filtered[TABLE_UP_SAMPLE].Create(m_device, texWidth, texHeight, desc.Format,
+	m_filtered[TABLE_UP_SAMPLE].Create(m_device, texWidth, texHeight, format,
 		6, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, m_numMips, 1,
 		D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COMMON, true);
 
@@ -58,32 +63,16 @@ bool LightProbe::Init(const CommandList& commandList, uint32_t width, uint32_t h
 	N_RETURN(createPipelines(), false);
 	N_RETURN(createDescriptorTables(), false);
 
-	// Copy source
-	{
-		ResourceBarrier barriers[7];
-		auto numBarriers = source->SetBarrier(barriers, D3D12_RESOURCE_STATE_COPY_SOURCE);
-		for (auto i = 0ui8; i < desc.DepthOrArraySize; ++i)
-			numBarriers = m_filtered[TABLE_DOWN_SAMPLE].SetBarrier(barriers, 0, D3D12_RESOURCE_STATE_COPY_DEST, numBarriers, i);
-		
-		commandList.Barrier(numBarriers, barriers);
-
-		for (auto i = 0ui8; i < desc.DepthOrArraySize; ++i)
-		{
-			const auto srcSubres = D3D12CalcSubresource(0, i, 0, desc.MipLevels, desc.DepthOrArraySize);
-			const auto dstSubres = D3D12CalcSubresource(0, i, 0, m_numMips - 1, desc.DepthOrArraySize);
-			const TextureCopyLocation src(source->GetResource().get(), srcSubres);
-			const TextureCopyLocation dst(m_filtered[TABLE_DOWN_SAMPLE].GetResource().get(), dstSubres);
-			commandList.CopyTextureRegion(dst, 0, 0, 0, src);
-		}
-	}
-
 	return true;
+}
+
+void LightProbe::UpdateFrame(double time)
+{
+	m_time = time;
 }
 
 void LightProbe::Process(const CommandList& commandList, ResourceState dstState)
 {
-	const uint8_t numPasses = m_numMips - 1;
-
 	// Set Descriptor pools
 	const DescriptorPool descriptorPools[] =
 	{
@@ -92,34 +81,8 @@ void LightProbe::Process(const CommandList& commandList, ResourceState dstState)
 	};
 	commandList.SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
 
-	// Generate Mips
-	ResourceBarrier barriers[12];
-	auto numBarriers = 0u;
-	if (numPasses > 0) numBarriers = m_filtered[TABLE_DOWN_SAMPLE].GenerateMips(commandList, barriers,
-		8, 8, 1, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		m_pipelineLayouts[RESAMPLE], m_pipelines[RESAMPLE], m_uavSrvTables[TABLE_DOWN_SAMPLE].data(),
-		1, m_samplerTable, 0, numBarriers, nullptr, 0, 1, numPasses - 1);
-	numBarriers = m_filtered[TABLE_UP_SAMPLE].SetBarrier(barriers, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, numBarriers);
-	commandList.Barrier(numBarriers, barriers);
-	numBarriers = 0;
-
-	commandList.SetComputeDescriptorTable(1, m_uavSrvTables[TABLE_DOWN_SAMPLE][numPasses]);
-	commandList.Dispatch(1, 1, 6);
-
-	// Up sampling
-	commandList.SetComputePipelineLayout(m_pipelineLayouts[UP_SAMPLE]);
-	commandList.SetPipelineState(m_pipelines[UP_SAMPLE]);
-	commandList.SetComputeDescriptorTable(0, m_samplerTable);
-
-	CosConstants cb = { m_mapSize, m_numMips };
-	for (auto i = 0ui8; i < numPasses; ++i)
-	{
-		const auto c = numPasses - i;
-		cb.Level = c - 1;
-		commandList.SetCompute32BitConstants(2, SizeOfInUint32(cb), &cb);
-		numBarriers = m_filtered[TABLE_UP_SAMPLE].Blit(commandList, barriers, 8, 8, 1,
-			cb.Level, c, dstState, m_uavSrvTables[TABLE_UP_SAMPLE][i], 1, numBarriers);
-	}
+	generateRadiance(commandList);
+	process(commandList, dstState);
 }
 
 Texture2D& LightProbe::GetIrradiance()
@@ -134,6 +97,18 @@ Texture2D& LightProbe::GetRadiance()
 
 bool LightProbe::createPipelineLayouts()
 {
+	// Generate Radiance
+	{
+		Util::PipelineLayout utilPipelineLayout;
+		utilPipelineLayout.SetRange(0, DescriptorType::SAMPLER, 1, 0);
+		utilPipelineLayout.SetConstants(1, SizeOfInUint32(float), 0);
+		utilPipelineLayout.SetRange(2, DescriptorType::UAV, 1, 0, 0,
+			D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE);
+		utilPipelineLayout.SetRange(3, DescriptorType::SRV, 2, 0);
+		X_RETURN(m_pipelineLayouts[RADIANCE], utilPipelineLayout.GetPipelineLayout(
+			m_pipelineLayoutCache, D3D12_ROOT_SIGNATURE_FLAG_NONE, L"RadianceGenerationLayout"), false);
+	}
+
 	// Resampling
 	{
 		Util::PipelineLayout utilPipelineLayout;
@@ -162,6 +137,16 @@ bool LightProbe::createPipelineLayouts()
 
 bool LightProbe::createPipelines()
 {
+	// Generate Radiance
+	{
+		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::CS, RADIANCE, L"CSRadiance.cso"), false);
+
+		Compute::State state;
+		state.SetPipelineLayout(m_pipelineLayouts[RADIANCE]);
+		state.SetShader(m_shaderPool.GetShader(Shader::Stage::CS, RADIANCE));
+		X_RETURN(m_pipelines[RADIANCE], state.GetPipeline(m_computePipelineCache, L"RadianceGeneration"), false);
+	}
+
 	// Resampling
 	{
 		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::CS, RESAMPLE, L"CSResample.cso"), false);
@@ -234,6 +219,32 @@ bool LightProbe::createDescriptorTables()
 		X_RETURN(m_uavSrvTables[TABLE_DOWN_SAMPLE][numPasses], utilUavSrvTable.GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 
+	// Get UAV table for radiance generation
+	Util::DescriptorTable utilUavTable;
+	utilUavTable.SetDescriptors(0, 1, &m_filtered[TABLE_DOWN_SAMPLE].GetUAV());
+	X_RETURN(m_uavTable, utilUavTable.GetCbvSrvUavTable(*m_descriptorTableCache), false);
+
+	// Get SRV tables for radiance generation
+	const auto numSources = static_cast<uint32_t>(m_sources.size());
+	m_srvTables.resize(m_sources.size());
+	for (auto i = 0u; i + 1 < numSources; ++i)
+	{
+		Util::DescriptorTable utilSrvTable;
+		utilSrvTable.SetDescriptors(0, 1, &m_sources[i]->GetSRV());
+		X_RETURN(m_srvTables[i], utilSrvTable.GetCbvSrvUavTable(*m_descriptorTableCache), false);
+	}
+	{
+		const auto i = numSources - 1;
+		const Descriptor descriptors[] =
+		{
+			m_sources[i]->GetSRV(),
+			m_sources[0]->GetSRV()
+		};
+		Util::DescriptorTable utilSrvTable;
+		utilSrvTable.SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
+		X_RETURN(m_srvTables[i], utilSrvTable.GetCbvSrvUavTable(*m_descriptorTableCache), false);
+	}
+
 	// Create the sampler table
 	Util::DescriptorTable samplerTable;
 	const auto sampler = LINEAR_WRAP;
@@ -241,4 +252,58 @@ bool LightProbe::createDescriptorTables()
 	X_RETURN(m_samplerTable, samplerTable.GetSamplerTable(*m_descriptorTableCache), false);
 
 	return true;
+}
+
+void LightProbe::generateRadiance(const CommandList& commandList)
+{
+	static const auto period = 3.0;
+	ResourceBarrier barrier;
+	const auto numBarriers = m_filtered[TABLE_DOWN_SAMPLE].SetBarrier(&barrier, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	commandList.Barrier(numBarriers, &barrier);
+
+	auto blend = static_cast<float>(m_time / period);
+	auto i = static_cast<uint32_t>(m_time / period);
+	blend -= i;
+	i %= static_cast<uint32_t>(m_srvTables.size());
+
+	commandList.SetComputePipelineLayout(m_pipelineLayouts[RADIANCE]);
+	commandList.SetPipelineState(m_pipelines[RADIANCE]);
+	commandList.SetComputeDescriptorTable(0, m_samplerTable);
+	commandList.SetCompute32BitConstant(1, reinterpret_cast<const uint32_t&>(blend));
+
+	m_filtered[TABLE_DOWN_SAMPLE].Blit(commandList, 8, 8, 1, m_uavTable, 2, 0, m_srvTables[i], 3);
+}
+
+void LightProbe::process(const CommandList& commandList, ResourceState dstState)
+{
+	const uint8_t numPasses = m_numMips - 1;
+
+	// Generate Mips
+	ResourceBarrier barriers[12];
+	auto numBarriers = 0u;
+	if (numPasses > 0) numBarriers = m_filtered[TABLE_DOWN_SAMPLE].GenerateMips(commandList, barriers,
+		8, 8, 1, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+		m_pipelineLayouts[RESAMPLE], m_pipelines[RESAMPLE], m_uavSrvTables[TABLE_DOWN_SAMPLE].data(),
+		1, m_samplerTable, 0, numBarriers, nullptr, 0, 1, numPasses - 1);
+	numBarriers = m_filtered[TABLE_UP_SAMPLE].SetBarrier(barriers, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, numBarriers);
+	commandList.Barrier(numBarriers, barriers);
+	numBarriers = 0;
+
+	commandList.SetComputeDescriptorTable(1, m_uavSrvTables[TABLE_DOWN_SAMPLE][numPasses]);
+	commandList.Dispatch(1, 1, 6);
+
+	// Up sampling
+	commandList.SetComputePipelineLayout(m_pipelineLayouts[UP_SAMPLE]);
+	commandList.SetPipelineState(m_pipelines[UP_SAMPLE]);
+	commandList.SetComputeDescriptorTable(0, m_samplerTable);
+
+	CosConstants cb = { m_mapSize, m_numMips };
+	for (auto i = 0ui8; i < numPasses; ++i)
+	{
+		const auto c = numPasses - i;
+		cb.Level = c - 1;
+		commandList.SetCompute32BitConstants(2, SizeOfInUint32(cb), &cb);
+		numBarriers = m_filtered[TABLE_UP_SAMPLE].Blit(commandList, barriers, 8, 8, 1,
+			cb.Level, c, dstState, m_uavSrvTables[TABLE_UP_SAMPLE][i], 1, numBarriers);
+	}
 }

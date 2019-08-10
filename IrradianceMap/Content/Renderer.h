@@ -19,7 +19,7 @@ public:
 	bool SetLightProbes(const XUSG::Descriptor& irradiance, const XUSG::Descriptor& radiance);
 
 	void UpdateFrame(uint32_t frameIndex, DirectX::CXMVECTOR eyePt, DirectX::CXMMATRIX viewProj, bool isPaused);
-	void Render(const XUSG::CommandList& commandList, uint32_t frameIndex);
+	void Render(const XUSG::CommandList& commandList, uint32_t frameIndex, bool needClear = false);
 	void ToneMap(const XUSG::CommandList& commandList, const XUSG::Descriptor& rtv,
 		uint32_t numBarriers, XUSG::ResourceBarrier* pBarriers);
 
@@ -102,7 +102,7 @@ protected:
 	bool createPipelines(XUSG::Format rtFormat);
 	bool createDescriptorTables();
 
-	void render(const XUSG::CommandList& commandList);
+	void render(const XUSG::CommandList& commandList, bool needClear);
 	void environment(const XUSG::CommandList& commandList);
 	void temporalAA(const XUSG::CommandList& commandList);
 
