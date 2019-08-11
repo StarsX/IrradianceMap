@@ -56,7 +56,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	const float denormC = (128.0 * s3 - (1 << (g_level * 2 + 4)) * s * pi2) * sinCos.y;
 	const float denormS = (1 << (g_level + 5)) * s2 * PI * sinCos.x;
 	const float denorminator = denormC - denormS + 64.0 * s3 * PI;
-	const float weight = saturate(numerator / denorminator);
+	const float weight = numerator / denorminator;//saturate(numerator / denorminator);
 #else
 	float wsum = 0.0, weight = 0.0;
 	for (uint i = g_level; i < g_numLevels; ++i)

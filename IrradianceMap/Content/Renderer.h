@@ -17,9 +17,11 @@ public:
 		std::vector<XUSG::Resource>& uploaders, const char* fileName, XUSG::Format rtFormat,
 		const DirectX::XMFLOAT4& posScale = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f));
 	bool SetLightProbes(const XUSG::Descriptor& irradiance, const XUSG::Descriptor& radiance);
+	bool SetLightProbesGT(const XUSG::Descriptor& irradiance, const XUSG::Descriptor& radiance);
 
 	void UpdateFrame(uint32_t frameIndex, DirectX::CXMVECTOR eyePt, DirectX::CXMMATRIX viewProj, bool isPaused);
-	void Render(const XUSG::CommandList& commandList, uint32_t frameIndex, bool needClear = false);
+	void Render(const XUSG::CommandList& commandList, uint32_t frameIndex,
+		bool isGroundTruth = false, bool needClear = false);
 	void ToneMap(const XUSG::CommandList& commandList, const XUSG::Descriptor& rtv,
 		uint32_t numBarriers, XUSG::ResourceBarrier* pBarriers);
 
@@ -46,6 +48,7 @@ protected:
 	enum SRVTable : uint8_t
 	{
 		SRV_TABLE_BASE,
+		SRV_TABLE_GT,
 		SRV_TABLE_TAA,
 		SRV_TABLE_TAA1,
 		SRV_TABLE_TM,
@@ -102,7 +105,7 @@ protected:
 	bool createPipelines(XUSG::Format rtFormat);
 	bool createDescriptorTables();
 
-	void render(const XUSG::CommandList& commandList, bool needClear);
+	void render(const XUSG::CommandList& commandList, bool isGroundTruth, bool needClear);
 	void environment(const XUSG::CommandList& commandList);
 	void temporalAA(const XUSG::CommandList& commandList);
 

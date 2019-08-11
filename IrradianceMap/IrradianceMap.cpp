@@ -18,6 +18,8 @@ const float g_FOVAngleY = XM_PIDIV4;
 const float g_zNear = 1.0f;
 const float g_zFar = 1000.0f;
 
+bool g_isGroundTruth = false;
+
 IrradianceMap::IrradianceMap(uint32_t width, uint32_t height, std::wstring name) :
 	DXFramework(width, height, name),
 	m_frameIndex(0),
@@ -150,6 +152,10 @@ void IrradianceMap::LoadAssets()
 	if (!m_renderer->SetLightProbes(m_lightProbe->GetIrradiance().GetSRV(), m_lightProbe->GetRadiance().GetSRV()))
 		ThrowIfFailed(E_FAIL);
 
+	const auto pIrradianctGT = m_lightProbe->GetIrradianceGT(m_commandList, (m_envFileNames[0] + L"_gt.dds").c_str(), &uploaders);
+	if (!m_renderer->SetLightProbesGT(pIrradianctGT->GetSRV(), m_lightProbe->GetRadiance().GetSRV()))
+		ThrowIfFailed(E_FAIL);
+
 	// Close the command list and execute it to begin the initial GPU setup.
 	ThrowIfFailed(m_commandList.Close());
 	ID3D12CommandList* const ppCommandLists[] = { m_commandList.GetCommandList().get() };
@@ -203,7 +209,7 @@ void IrradianceMap::OnUpdate()
 	const auto eyePt = XMLoadFloat3(&m_eyePt);
 	const auto view = XMLoadFloat4x4(&m_view);
 	const auto proj = XMLoadFloat4x4(&m_proj);
-	m_lightProbe->UpdateFrame(time);
+	m_lightProbe->UpdateFrame(g_isGroundTruth ? 0.0 : time);
 	m_renderer->UpdateFrame(m_frameIndex, eyePt, view * proj, m_isPaused);
 }
 
@@ -357,7 +363,7 @@ void IrradianceMap::PopulateCommandList()
 		numBarriers = m_lightProbe->GetIrradiance().SetBarrier(barriers, 0, dstState, numBarriers, i);
 	m_commandList.Barrier(numBarriers, barriers);
 
-	m_renderer->Render(m_commandList, m_frameIndex);
+	m_renderer->Render(m_commandList, m_frameIndex, g_isGroundTruth);
 
 	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, D3D12_RESOURCE_STATE_RENDER_TARGET);
 	m_renderer->ToneMap(m_commandList, m_renderTargets[m_frameIndex].GetRTV(), numBarriers, barriers);

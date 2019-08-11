@@ -21,6 +21,8 @@ public:
 	void UpdateFrame(double time);
 	void Process(const XUSG::CommandList &commandList, XUSG::ResourceState dstState);
 
+	XUSG::ResourceBase* GetIrradianceGT(const XUSG::CommandList& commandList,
+		const wchar_t* fileName = nullptr, std::vector<XUSG::Resource>* pUploaders = nullptr);
 	XUSG::Texture2D& GetIrradiance();
 	XUSG::Texture2D& GetRadiance();
 
@@ -64,6 +66,7 @@ protected:
 	XUSG::DescriptorTable	m_uavTable;
 	XUSG::DescriptorTable	m_samplerTable;
 
+	std::shared_ptr<XUSG::ResourceBase> m_groundTruth;
 	std::vector<std::shared_ptr<XUSG::ResourceBase>> m_sources;
 	XUSG::Texture2D			m_filtered[NUM_UAV_SRV];
 

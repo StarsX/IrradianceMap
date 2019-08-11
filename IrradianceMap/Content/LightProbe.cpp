@@ -14,6 +14,7 @@ struct CosConstants
 
 LightProbe::LightProbe(const Device& device) :
 	m_device(device),
+	m_groundTruth(nullptr),
 	m_numMips(11)
 {
 	m_computePipelineCache.SetDevice(device);
@@ -51,7 +52,7 @@ bool LightProbe::Init(const CommandList& commandList, uint32_t width, uint32_t h
 	m_numMips = (max)(Log2((max)(texWidth, texHeight)), 1ui8) + 1;
 	m_mapSize = (texWidth + texHeight) * 0.5f;
 
-	const auto format = DXGI_FORMAT_R11G11B10_FLOAT;
+	const auto format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 	m_filtered[TABLE_DOWN_SAMPLE].Create(m_device, texWidth, texHeight, format,
 		6, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, m_numMips - 1, 1,
 		D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COMMON, true);
@@ -83,6 +84,22 @@ void LightProbe::Process(const CommandList& commandList, ResourceState dstState)
 
 	generateRadiance(commandList);
 	process(commandList, dstState);
+}
+
+ResourceBase* LightProbe::GetIrradianceGT(const CommandList& commandList,
+	const wchar_t* fileName, vector<Resource>* pUploaders)
+{
+	if (!m_groundTruth && fileName && pUploaders)
+	{
+		DDS::Loader textureLoader;
+		DDS::AlphaMode alphaMode;
+
+		pUploaders->push_back(nullptr);
+		N_RETURN(textureLoader.CreateTextureFromFile(m_device, commandList, fileName,
+			8192, false, m_groundTruth, pUploaders->back(), &alphaMode), false);
+	}
+
+	return m_groundTruth.get();
 }
 
 Texture2D& LightProbe::GetIrradiance()
@@ -261,10 +278,11 @@ void LightProbe::generateRadiance(const CommandList& commandList)
 	const auto numBarriers = m_filtered[TABLE_DOWN_SAMPLE].SetBarrier(&barrier, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	commandList.Barrier(numBarriers, &barrier);
 
+	const auto numSources = static_cast<uint32_t>(m_srvTables.size());
 	auto blend = static_cast<float>(m_time / period);
 	auto i = static_cast<uint32_t>(m_time / period);
-	blend -= i;
-	i %= static_cast<uint32_t>(m_srvTables.size());
+	blend = numSources > 1 ? blend - i : 0.0f;
+	i %= numSources;
 
 	commandList.SetComputePipelineLayout(m_pipelineLayouts[RADIANCE]);
 	commandList.SetPipelineState(m_pipelines[RADIANCE]);

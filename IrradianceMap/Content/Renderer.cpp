@@ -74,6 +74,16 @@ bool Renderer::SetLightProbes(const Descriptor& irradiance, const Descriptor& ra
 	return true;
 }
 
+bool Renderer::SetLightProbesGT(const Descriptor& irradiance, const Descriptor& radiance)
+{
+	const Descriptor descriptors[] = { radiance, irradiance };
+	Util::DescriptorTable descriptorTable;
+	descriptorTable.SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
+	X_RETURN(m_srvTables[SRV_TABLE_GT], descriptorTable.GetCbvSrvUavTable(*m_descriptorTableCache), false);
+
+	return true;
+}
+
 static const XMFLOAT2& IncrementalHalton()
 {
 	static auto haltonBase = XMUINT2(0, 0);
@@ -164,7 +174,7 @@ void Renderer::UpdateFrame(uint32_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewP
 	m_frameParity = !m_frameParity;
 }
 
-void Renderer::Render(const CommandList& commandList, uint32_t frameIndex, bool needClear)
+void Renderer::Render(const CommandList& commandList, uint32_t frameIndex, bool isGroundTruth, bool needClear)
 {
 	ResourceBarrier barriers[4];
 	auto numBarriers = m_renderTargets[RT_COLOR].SetBarrier(barriers, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -173,7 +183,7 @@ void Renderer::Render(const CommandList& commandList, uint32_t frameIndex, bool 
 	numBarriers = m_outputViews[UAV_PP_TAA + !m_frameParity].SetBarrier(barriers, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, numBarriers, 0xffffffff, D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
 	commandList.Barrier(numBarriers, barriers);
-	render(commandList, needClear);
+	render(commandList, isGroundTruth, needClear);
 	environment(commandList);
 
 	temporalAA(commandList);
@@ -424,7 +434,7 @@ bool Renderer::createDescriptorTables()
 	return true;
 }
 
-void Renderer::render(const CommandList& commandList, bool needClear)
+void Renderer::render(const CommandList& commandList, bool isGroundTruth, bool needClear)
 {
 	// Set render target
 	commandList.OMSetRenderTargets(NUM_RENDER_TARGET, m_rtvTable, &m_depth.GetDSV());
@@ -451,7 +461,7 @@ void Renderer::render(const CommandList& commandList, bool needClear)
 	// Set descriptor tables
 	commandList.SetGraphics32BitConstants(VS_CONSTANTS, SizeOfInUint32(m_cbBasePass), &m_cbBasePass);
 	commandList.SetGraphics32BitConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT3), &m_cbPerFrame);
-	commandList.SetGraphicsDescriptorTable(SHADER_RESOURCES, m_srvTables[SRV_TABLE_BASE]);
+	commandList.SetGraphicsDescriptorTable(SHADER_RESOURCES, m_srvTables[isGroundTruth ? SRV_TABLE_GT : SRV_TABLE_BASE]);
 	commandList.SetGraphicsDescriptorTable(SAMPLER, m_samplerTable);
 
 	commandList.IASetVertexBuffers(0, 1, &m_vertexBuffer.GetVBV());
