@@ -357,15 +357,16 @@ void IrradianceMap::PopulateCommandList()
 	const auto dstState = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 	m_lightProbe->Process(m_commandList, dstState);	// V-cycle
 
-	ResourceBarrier barriers[6];
+	ResourceBarrier barriers[11];
 	auto numBarriers = 0u;
 	for (auto i = 0ui8; i < 6; ++i)
 		numBarriers = m_lightProbe->GetIrradiance().SetBarrier(barriers, 0, dstState, numBarriers, i);
-	m_commandList.Barrier(numBarriers, barriers);
+	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, D3D12_RESOURCE_STATE_RENDER_TARGET,
+		numBarriers, 0, D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
+	m_renderer->Render(m_commandList, m_frameIndex, barriers, numBarriers, g_isGroundTruth);
 
-	m_renderer->Render(m_commandList, m_frameIndex, g_isGroundTruth);
-
-	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, D3D12_RESOURCE_STATE_RENDER_TARGET,
+		0, 0, D3D12_RESOURCE_BARRIER_FLAG_END_ONLY);
 	m_renderer->ToneMap(m_commandList, m_renderTargets[m_frameIndex].GetRTV(), numBarriers, barriers);
 	
 	// Indicate that the back buffer will now be used to present.

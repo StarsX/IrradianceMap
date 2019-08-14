@@ -174,10 +174,10 @@ void Renderer::UpdateFrame(uint32_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewP
 	m_frameParity = !m_frameParity;
 }
 
-void Renderer::Render(const CommandList& commandList, uint32_t frameIndex, bool isGroundTruth, bool needClear)
+void Renderer::Render(const CommandList& commandList, uint32_t frameIndex, ResourceBarrier* barriers,
+	uint32_t numBarriers, bool isGroundTruth, bool needClear)
 {
-	ResourceBarrier barriers[4];
-	auto numBarriers = m_renderTargets[RT_COLOR].SetBarrier(barriers, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	numBarriers = m_renderTargets[RT_COLOR].SetBarrier(barriers, D3D12_RESOURCE_STATE_RENDER_TARGET, numBarriers);
 	numBarriers = m_renderTargets[RT_VELOCITY].SetBarrier(barriers, D3D12_RESOURCE_STATE_RENDER_TARGET, numBarriers);
 	numBarriers = m_depth.SetBarrier(barriers, D3D12_RESOURCE_STATE_DEPTH_WRITE, numBarriers);
 	numBarriers = m_outputViews[UAV_PP_TAA + !m_frameParity].SetBarrier(barriers, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |

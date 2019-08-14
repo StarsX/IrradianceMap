@@ -20,8 +20,8 @@ public:
 	bool SetLightProbesGT(const XUSG::Descriptor& irradiance, const XUSG::Descriptor& radiance);
 
 	void UpdateFrame(uint32_t frameIndex, DirectX::CXMVECTOR eyePt, DirectX::CXMMATRIX viewProj, bool isPaused);
-	void Render(const XUSG::CommandList& commandList, uint32_t frameIndex,
-		bool isGroundTruth = false, bool needClear = false);
+	void Render(const XUSG::CommandList& commandList, uint32_t frameIndex, XUSG::ResourceBarrier* barriers,
+		uint32_t numBarriers = 0, bool isGroundTruth = false, bool needClear = false);
 	void ToneMap(const XUSG::CommandList& commandList, const XUSG::Descriptor& rtv,
 		uint32_t numBarriers, XUSG::ResourceBarrier* pBarriers);
 
