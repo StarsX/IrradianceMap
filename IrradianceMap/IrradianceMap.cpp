@@ -362,11 +362,11 @@ void IrradianceMap::PopulateCommandList()
 	for (auto i = 0ui8; i < 6; ++i)
 		numBarriers = m_lightProbe->GetIrradiance().SetBarrier(barriers, 0, dstState, numBarriers, i);
 	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, D3D12_RESOURCE_STATE_RENDER_TARGET,
-		numBarriers, 0, D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
+		numBarriers, 0xffffffff, D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
 	m_renderer->Render(m_commandList, m_frameIndex, barriers, numBarriers, g_isGroundTruth);
 
 	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, D3D12_RESOURCE_STATE_RENDER_TARGET,
-		0, 0, D3D12_RESOURCE_BARRIER_FLAG_END_ONLY);
+		0, 0xffffffff, D3D12_RESOURCE_BARRIER_FLAG_END_ONLY);
 	m_renderer->ToneMap(m_commandList, m_renderTargets[m_frameIndex].GetRTV(), numBarriers, barriers);
 	
 	// Indicate that the back buffer will now be used to present.

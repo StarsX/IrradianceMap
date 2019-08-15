@@ -184,6 +184,11 @@ void Renderer::Render(const CommandList& commandList, uint32_t frameIndex, Resou
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, numBarriers, 0xffffffff, D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
 	commandList.Barrier(numBarriers, barriers);
 	render(commandList, isGroundTruth, needClear);
+
+	numBarriers = m_renderTargets[RT_VELOCITY].SetBarrier(barriers, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+		0, 0xffffffff, D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
+	commandList.Barrier(numBarriers, barriers);
+
 	environment(commandList);
 
 	temporalAA(commandList);
@@ -503,7 +508,8 @@ void Renderer::temporalAA(const CommandList& commandList)
 	numBarriers = m_renderTargets[RT_COLOR].SetBarrier(barriers, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, numBarriers);
 	numBarriers = m_outputViews[UAV_PP_TAA + !m_frameParity].SetBarrier(barriers, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, numBarriers, 0xffffffff, D3D12_RESOURCE_BARRIER_FLAG_END_ONLY);
-	numBarriers = m_renderTargets[RT_VELOCITY].SetBarrier(barriers, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, numBarriers);
+	numBarriers = m_renderTargets[RT_VELOCITY].SetBarrier(barriers, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+		numBarriers, 0xffffffff, D3D12_RESOURCE_BARRIER_FLAG_END_ONLY);
 	commandList.Barrier(numBarriers, barriers);
 
 	// Set descriptor tables
