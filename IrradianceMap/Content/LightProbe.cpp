@@ -52,13 +52,13 @@ bool LightProbe::Init(const CommandList& commandList, uint32_t width, uint32_t h
 	m_numMips = (max)(Log2((max)(texWidth, texHeight)), 1ui8) + 1;
 	m_mapSize = (texWidth + texHeight) * 0.5f;
 
-	const auto format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+	const auto format = Format::R16G16B16A16_FLOAT;
 	m_filtered[TABLE_DOWN_SAMPLE].Create(m_device, texWidth, texHeight, format,
-		6, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, m_numMips - 1, 1,
-		D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COMMON, true);
+		6, ResourceFlag::ALLOW_UNORDERED_ACCESS, m_numMips - 1, 1,
+		MemoryType::DEFAULT, ResourceState::COMMON, true);
 	m_filtered[TABLE_UP_SAMPLE].Create(m_device, texWidth, texHeight, format,
-		6, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, m_numMips, 1,
-		D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COMMON, true);
+		6, ResourceFlag::ALLOW_UNORDERED_ACCESS, m_numMips, 1,
+		MemoryType::DEFAULT, ResourceState::COMMON, true);
 
 	N_RETURN(createPipelineLayouts(), false);
 	N_RETURN(createPipelines(), false);
@@ -120,10 +120,10 @@ bool LightProbe::createPipelineLayouts()
 		utilPipelineLayout.SetRange(0, DescriptorType::SAMPLER, 1, 0);
 		utilPipelineLayout.SetConstants(1, SizeOfInUint32(float), 0);
 		utilPipelineLayout.SetRange(2, DescriptorType::UAV, 1, 0, 0,
-			D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE);
+			DescriptorRangeFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		utilPipelineLayout.SetRange(3, DescriptorType::SRV, 2, 0);
 		X_RETURN(m_pipelineLayouts[RADIANCE], utilPipelineLayout.GetPipelineLayout(
-			m_pipelineLayoutCache, D3D12_ROOT_SIGNATURE_FLAG_NONE, L"RadianceGenerationLayout"), false);
+			m_pipelineLayoutCache, PipelineLayoutFlag::NONE, L"RadianceGenerationLayout"), false);
 	}
 
 	// Resampling
@@ -132,9 +132,9 @@ bool LightProbe::createPipelineLayouts()
 		utilPipelineLayout.SetRange(0, DescriptorType::SAMPLER, 1, 0);
 		utilPipelineLayout.SetRange(1, DescriptorType::SRV, 1, 0);
 		utilPipelineLayout.SetRange(1, DescriptorType::UAV, 1, 0, 0,
-			D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE);
+			DescriptorRangeFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		X_RETURN(m_pipelineLayouts[RESAMPLE], utilPipelineLayout.GetPipelineLayout(
-			m_pipelineLayoutCache, D3D12_ROOT_SIGNATURE_FLAG_NONE, L"ResamplingLayout"), false);
+			m_pipelineLayoutCache, PipelineLayoutFlag::NONE, L"ResamplingLayout"), false);
 	}
 
 	// Up sampling
@@ -143,10 +143,10 @@ bool LightProbe::createPipelineLayouts()
 		utilPipelineLayout.SetRange(0, DescriptorType::SAMPLER, 1, 0);
 		utilPipelineLayout.SetRange(1, DescriptorType::SRV, 2, 0);
 		utilPipelineLayout.SetRange(1, DescriptorType::UAV, 1, 0, 0,
-			D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE);
+			DescriptorRangeFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		utilPipelineLayout.SetConstants(2, SizeOfInUint32(CosConstants), 0);
 		X_RETURN(m_pipelineLayouts[UP_SAMPLE], utilPipelineLayout.GetPipelineLayout(
-			m_pipelineLayoutCache, D3D12_ROOT_SIGNATURE_FLAG_NONE, L"UpSamplingLayout"), false);
+			m_pipelineLayoutCache, PipelineLayoutFlag::NONE, L"UpSamplingLayout"), false);
 	}
 
 	return true;
@@ -275,7 +275,7 @@ void LightProbe::generateRadiance(const CommandList& commandList)
 {
 	static const auto period = 3.0;
 	ResourceBarrier barrier;
-	const auto numBarriers = m_filtered[TABLE_DOWN_SAMPLE].SetBarrier(&barrier, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	const auto numBarriers = m_filtered[TABLE_DOWN_SAMPLE].SetBarrier(&barrier, ResourceState::UNORDERED_ACCESS);
 	commandList.Barrier(numBarriers, &barrier);
 
 	const auto numSources = static_cast<uint32_t>(m_srvTables.size());
@@ -300,10 +300,10 @@ void LightProbe::process(const CommandList& commandList, ResourceState dstState)
 	ResourceBarrier barriers[12];
 	auto numBarriers = 0u;
 	if (numPasses > 0) numBarriers = m_filtered[TABLE_DOWN_SAMPLE].GenerateMips(commandList, barriers,
-		8, 8, 1, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+		8, 8, 1, ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE,
 		m_pipelineLayouts[RESAMPLE], m_pipelines[RESAMPLE], m_uavSrvTables[TABLE_DOWN_SAMPLE].data(),
 		1, m_samplerTable, 0, numBarriers, nullptr, 0, 1, numPasses - 1);
-	numBarriers = m_filtered[TABLE_UP_SAMPLE].SetBarrier(barriers, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, numBarriers);
+	numBarriers = m_filtered[TABLE_UP_SAMPLE].SetBarrier(barriers, ResourceState::UNORDERED_ACCESS, numBarriers);
 	commandList.Barrier(numBarriers, barriers);
 	numBarriers = 0;
 

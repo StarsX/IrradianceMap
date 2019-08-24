@@ -147,7 +147,7 @@ void IrradianceMap::LoadAssets()
 	if (!m_renderer) ThrowIfFailed(E_FAIL);
 
 	if (!m_renderer->Init(m_commandList, m_width, m_height, m_descriptorTableCache,
-		uploaders, m_meshFileName.c_str(), DXGI_FORMAT_B8G8R8A8_UNORM, m_meshPosScale))
+		uploaders, m_meshFileName.c_str(), Format::B8G8R8A8_UNORM, m_meshPosScale))
 		ThrowIfFailed(E_FAIL);
 	if (!m_renderer->SetLightProbes(m_lightProbe->GetIrradiance().GetSRV(), m_lightProbe->GetRadiance().GetSRV()))
 		ThrowIfFailed(E_FAIL);
@@ -354,23 +354,23 @@ void IrradianceMap::PopulateCommandList()
 	ThrowIfFailed(m_commandList.Reset(m_commandAllocators[m_frameIndex], nullptr));
 
 	// Record commands.
-	const auto dstState = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+	const auto dstState = ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE;
 	m_lightProbe->Process(m_commandList, dstState);	// V-cycle
 
 	ResourceBarrier barriers[11];
 	auto numBarriers = 0u;
 	for (auto i = 0ui8; i < 6; ++i)
 		numBarriers = m_lightProbe->GetIrradiance().SetBarrier(barriers, 0, dstState, numBarriers, i);
-	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, D3D12_RESOURCE_STATE_RENDER_TARGET,
-		numBarriers, 0xffffffff, D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
+	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, ResourceState::RENDER_TARGET,
+		numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
 	m_renderer->Render(m_commandList, m_frameIndex, barriers, numBarriers, g_isGroundTruth);
 
-	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, D3D12_RESOURCE_STATE_RENDER_TARGET,
-		0, 0xffffffff, D3D12_RESOURCE_BARRIER_FLAG_END_ONLY);
+	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, ResourceState::RENDER_TARGET,
+		0, BARRIER_ALL_SUBRESOURCES, BarrierFlag::END_ONLY);
 	m_renderer->ToneMap(m_commandList, m_renderTargets[m_frameIndex].GetRTV(), numBarriers, barriers);
 	
 	// Indicate that the back buffer will now be used to present.
-	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, D3D12_RESOURCE_STATE_PRESENT);
+	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, ResourceState::PRESENT);
 	m_commandList.Barrier(numBarriers, barriers);
 
 	ThrowIfFailed(m_commandList.Close());

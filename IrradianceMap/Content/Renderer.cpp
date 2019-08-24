@@ -40,20 +40,20 @@ bool Renderer::Init(const CommandList& commandList, uint32_t width, uint32_t hei
 
 	// Create output views
 	// Render targets
-	m_renderTargets[RT_COLOR].Create(m_device, width, height, DXGI_FORMAT_R16G16B16A16_FLOAT, 1, D3D12_RESOURCE_FLAG_NONE,
-		1, 1, D3D12_RESOURCE_STATE_COMMON, nullptr, false, L"Color");
-	m_renderTargets[RT_VELOCITY].Create(m_device, width, height, DXGI_FORMAT_R16G16_FLOAT, 1, D3D12_RESOURCE_FLAG_NONE,
-		1, 1, D3D12_RESOURCE_STATE_COMMON, nullptr, false, L"Velocity");
-	m_depth.Create(m_device, width, height, DXGI_FORMAT_D24_UNORM_S8_UINT, D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE,
-		1, 1, 1, D3D12_RESOURCE_STATE_COMMON, 1.0f, 0, false, L"Depth");
+	m_renderTargets[RT_COLOR].Create(m_device, width, height, Format::R16G16B16A16_FLOAT, 1, ResourceFlag::NONE,
+		1, 1, ResourceState::COMMON, nullptr, false, L"Color");
+	m_renderTargets[RT_VELOCITY].Create(m_device, width, height, Format::R16G16_FLOAT, 1, ResourceFlag::NONE,
+		1, 1, ResourceState::COMMON, nullptr, false, L"Velocity");
+	m_depth.Create(m_device, width, height, Format::D24_UNORM_S8_UINT, ResourceFlag::DENY_SHADER_RESOURCE,
+		1, 1, 1, ResourceState::COMMON, 1.0f, 0, false, L"Depth");
 
 	// Temporal AA
-	m_outputViews[UAV_PP_TAA].Create(m_device, width, height, DXGI_FORMAT_R16G16B16A16_FLOAT,
-		1, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, 1, 1, D3D12_HEAP_TYPE_DEFAULT,
-		D3D12_RESOURCE_STATE_COMMON, false, L"TemporalAAOut0");
-	m_outputViews[UAV_PP_TAA1].Create(m_device, width, height, DXGI_FORMAT_R16G16B16A16_FLOAT,
-		1, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, 1, 1, D3D12_HEAP_TYPE_DEFAULT,
-		D3D12_RESOURCE_STATE_COMMON, false, L"TemporalAAOut1");
+	m_outputViews[UAV_PP_TAA].Create(m_device, width, height, Format::R16G16B16A16_FLOAT,
+		1, ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT,
+		ResourceState::COMMON, false, L"TemporalAAOut0");
+	m_outputViews[UAV_PP_TAA1].Create(m_device, width, height, Format::R16G16B16A16_FLOAT,
+		1, ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT,
+		ResourceState::COMMON, false, L"TemporalAAOut1");
 
 	// Create pipelines
 	N_RETURN(createInputLayout(), false);
@@ -177,16 +177,16 @@ void Renderer::UpdateFrame(uint32_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewP
 void Renderer::Render(const CommandList& commandList, uint32_t frameIndex, ResourceBarrier* barriers,
 	uint32_t numBarriers, bool isGroundTruth, bool needClear)
 {
-	numBarriers = m_renderTargets[RT_COLOR].SetBarrier(barriers, D3D12_RESOURCE_STATE_RENDER_TARGET, numBarriers);
-	numBarriers = m_renderTargets[RT_VELOCITY].SetBarrier(barriers, D3D12_RESOURCE_STATE_RENDER_TARGET, numBarriers);
-	numBarriers = m_depth.SetBarrier(barriers, D3D12_RESOURCE_STATE_DEPTH_WRITE, numBarriers);
-	numBarriers = m_outputViews[UAV_PP_TAA + !m_frameParity].SetBarrier(barriers, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, numBarriers, 0xffffffff, D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
+	numBarriers = m_renderTargets[RT_COLOR].SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
+	numBarriers = m_renderTargets[RT_VELOCITY].SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
+	numBarriers = m_depth.SetBarrier(barriers, ResourceState::DEPTH_WRITE, numBarriers);
+	numBarriers = m_outputViews[UAV_PP_TAA + !m_frameParity].SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE |
+		ResourceState::PIXEL_SHADER_RESOURCE, numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
 	commandList.Barrier(numBarriers, barriers);
 	render(commandList, isGroundTruth, needClear);
 
-	numBarriers = m_renderTargets[RT_VELOCITY].SetBarrier(barriers, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-		0, 0xffffffff, D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY);
+	numBarriers = m_renderTargets[RT_VELOCITY].SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE,
+		0, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
 	commandList.Barrier(numBarriers, barriers);
 
 	environment(commandList);
@@ -198,8 +198,8 @@ void Renderer::ToneMap(const CommandList& commandList, const Descriptor& rtv,
 	uint32_t numBarriers, ResourceBarrier* pBarriers)
 {
 	numBarriers = m_outputViews[UAV_PP_TAA + m_frameParity].SetBarrier(
-		pBarriers, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, numBarriers);
+		pBarriers, ResourceState::NON_PIXEL_SHADER_RESOURCE |
+		ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
 	commandList.Barrier(numBarriers, pBarriers);
 
 	// Set render target
@@ -218,20 +218,20 @@ void Renderer::ToneMap(const CommandList& commandList, const Descriptor& rtv,
 	commandList.RSSetViewports(1, &viewport);
 	commandList.RSSetScissorRects(1, &scissorRect);
 
-	commandList.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	commandList.IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
 	commandList.Draw(3, 1, 0, 0);
 }
 
 bool Renderer::createVB(const CommandList& commandList, uint32_t numVert,
 	uint32_t stride, const uint8_t* pData, vector<Resource>& uploaders)
 {
-	N_RETURN(m_vertexBuffer.Create(m_device, numVert, stride, D3D12_RESOURCE_FLAG_NONE,
-		D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COPY_DEST, 1, nullptr, 1, nullptr,
+	N_RETURN(m_vertexBuffer.Create(m_device, numVert, stride, ResourceFlag::NONE,
+		MemoryType::DEFAULT, ResourceState::COPY_DEST, 1, nullptr, 1, nullptr,
 		1, nullptr, L"MeshVB"), false);
 	uploaders.push_back(nullptr);
 
 	return m_vertexBuffer.Upload(commandList, uploaders.back(), pData, stride * numVert,
-		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+		ResourceState::NON_PIXEL_SHADER_RESOURCE);
 }
 
 bool Renderer::createIB(const CommandList& commandList, uint32_t numIndices,
@@ -240,24 +240,22 @@ bool Renderer::createIB(const CommandList& commandList, uint32_t numIndices,
 	m_numIndices = numIndices;
 
 	const uint32_t byteWidth = sizeof(uint32_t) * numIndices;
-	N_RETURN(m_indexBuffer.Create(m_device, byteWidth, DXGI_FORMAT_R32_UINT,
-		D3D12_RESOURCE_FLAG_NONE, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COPY_DEST,
+	N_RETURN(m_indexBuffer.Create(m_device, byteWidth, Format::R32_UINT,
+		ResourceFlag::NONE, MemoryType::DEFAULT, ResourceState::COPY_DEST,
 		1, nullptr, 1, nullptr, 1, nullptr, L"MeshIB"), false);
 	uploaders.push_back(nullptr);
 
 	return m_indexBuffer.Upload(commandList, uploaders.back(), pData,
-		byteWidth, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+		byteWidth, ResourceState::NON_PIXEL_SHADER_RESOURCE);
 }
 
 bool Renderer::createInputLayout()
 {
-	const auto offset = D3D12_APPEND_ALIGNED_ELEMENT;
-
 	// Define the vertex input layout.
 	InputElementTable inputElementDescs =
 	{
-		{ "POSITION",	0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,		D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "NORMAL",		0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offset,	D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+		{ "POSITION",	0, Format::R32G32B32_FLOAT, 0, 0,								InputClassification::PER_VERTEX_DATA, 0 },
+		{ "NORMAL",		0, Format::R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT,	InputClassification::PER_VERTEX_DATA, 0 }
 	};
 
 	X_RETURN(m_inputLayout, m_graphicsPipelineCache.CreateInputLayout(inputElementDescs), false);
@@ -277,7 +275,7 @@ bool Renderer::createPipelineLayouts()
 		pipelineLayout.SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
 		pipelineLayout.SetShaderStage(SAMPLER, Shader::PS);
 		X_RETURN(m_pipelineLayouts[BASE_PASS], pipelineLayout.GetPipelineLayout(m_pipelineLayoutCache,
-			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, L"BasePassLayout"), false);
+			PipelineLayoutFlag::ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, L"BasePassLayout"), false);
 	}
 
 	// This is a pipeline layout for drawing environment
@@ -289,18 +287,18 @@ bool Renderer::createPipelineLayouts()
 		pipelineLayout.SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
 		pipelineLayout.SetShaderStage(SAMPLER, Shader::PS);
 		X_RETURN(m_pipelineLayouts[ENVIRONMENT], pipelineLayout.GetPipelineLayout(m_pipelineLayoutCache,
-			D3D12_ROOT_SIGNATURE_FLAG_NONE, L"EnvironmentLayout"), false);
+			PipelineLayoutFlag::NONE, L"EnvironmentLayout"), false);
 	}
 
 	// This is a pipeline layout for temporal AA
 	{
 		Util::PipelineLayout pipelineLayout;
 		pipelineLayout.SetRange(OUTPUT_VIEW, DescriptorType::UAV, 1, 0, 0,
-			D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE);
+			DescriptorRangeFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout.SetRange(SHADER_RESOURCES, DescriptorType::SRV, 3, 0);
 		pipelineLayout.SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
 		X_RETURN(m_pipelineLayouts[TEMPORAL_AA], pipelineLayout.GetPipelineLayout(m_pipelineLayoutCache,
-			D3D12_ROOT_SIGNATURE_FLAG_NONE, L"TemporalAALayout"), false);
+			PipelineLayoutFlag::NONE, L"TemporalAALayout"), false);
 	}
 
 	// This is a pipeline layout for tone mapping
@@ -309,7 +307,7 @@ bool Renderer::createPipelineLayouts()
 		pipelineLayout.SetRange(0, DescriptorType::SRV, 1, 0);
 		pipelineLayout.SetShaderStage(0, Shader::Stage::PS);
 		X_RETURN(m_pipelineLayouts[TONE_MAP], pipelineLayout.GetPipelineLayout(m_pipelineLayoutCache,
-			D3D12_ROOT_SIGNATURE_FLAG_NONE, L"ToneMappingLayout"), false);
+			PipelineLayoutFlag::NONE, L"ToneMappingLayout"), false);
 	}
 
 	return true;
@@ -331,11 +329,11 @@ bool Renderer::createPipelines(Format rtFormat)
 		state.SetPipelineLayout(m_pipelineLayouts[BASE_PASS]);
 		state.SetShader(Shader::Stage::VS, m_shaderPool.GetShader(Shader::Stage::VS, vsIndex++));
 		state.SetShader(Shader::Stage::PS, m_shaderPool.GetShader(Shader::Stage::PS, psIndex++));
-		state.IASetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
+		state.IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
 		state.OMSetNumRenderTargets(NUM_RENDER_TARGET);
-		state.OMSetRTVFormat(RT_COLOR, DXGI_FORMAT_R16G16B16A16_FLOAT);
-		state.OMSetRTVFormat(RT_VELOCITY, DXGI_FORMAT_R16G16_FLOAT);
-		state.OMSetDSVFormat(DXGI_FORMAT_D24_UNORM_S8_UINT);
+		state.OMSetRTVFormat(RT_COLOR, Format::R16G16B16A16_FLOAT);
+		state.OMSetRTVFormat(RT_VELOCITY, Format::R16G16_FLOAT);
+		state.OMSetDSVFormat(Format::D24_UNORM_S8_UINT);
 		X_RETURN(m_pipelines[BASE_PASS], state.GetPipeline(m_graphicsPipelineCache, L"BasePass"), false);
 	}
 
@@ -349,10 +347,10 @@ bool Renderer::createPipelines(Format rtFormat)
 		state.SetShader(Shader::Stage::VS, m_shaderPool.GetShader(Shader::Stage::VS, vsIndex));
 		state.SetShader(Shader::Stage::PS, m_shaderPool.GetShader(Shader::Stage::PS, psIndex++));
 		state.DSSetState(Graphics::DEPTH_READ_LESS_EQUAL, m_graphicsPipelineCache);
-		state.IASetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
+		state.IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
 		state.OMSetNumRenderTargets(1);
-		state.OMSetRTVFormat(RT_COLOR, DXGI_FORMAT_R16G16B16A16_FLOAT);
-		state.OMSetDSVFormat(DXGI_FORMAT_D24_UNORM_S8_UINT);
+		state.OMSetRTVFormat(RT_COLOR, Format::R16G16B16A16_FLOAT);
+		state.OMSetDSVFormat(Format::D24_UNORM_S8_UINT);
 		X_RETURN(m_pipelines[ENVIRONMENT], state.GetPipeline(m_graphicsPipelineCache, L"Environment"), false);
 	}
 
@@ -375,7 +373,7 @@ bool Renderer::createPipelines(Format rtFormat)
 		state.SetShader(Shader::Stage::VS, m_shaderPool.GetShader(Shader::Stage::VS, vsIndex++));
 		state.SetShader(Shader::Stage::PS, m_shaderPool.GetShader(Shader::Stage::PS, psIndex++));
 		state.DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineCache);
-		state.IASetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
+		state.IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
 		state.OMSetNumRenderTargets(1);
 		state.OMSetRTVFormat(0, rtFormat);
 		X_RETURN(m_pipelines[TONE_MAP], state.GetPipeline(m_graphicsPipelineCache, L"ToneMapping"), false);
@@ -449,7 +447,7 @@ void Renderer::render(const CommandList& commandList, bool isGroundTruth, bool n
 	const float clearColorNull[4] = {};
 	if (needClear) commandList.ClearRenderTargetView(m_renderTargets[RT_COLOR].GetRTV(), clearColor);
 	commandList.ClearRenderTargetView(m_renderTargets[RT_VELOCITY].GetRTV(), clearColorNull);
-	commandList.ClearDepthStencilView(m_depth.GetDSV(), D3D12_CLEAR_FLAG_DEPTH, 1.0f);
+	commandList.ClearDepthStencilView(m_depth.GetDSV(), ClearFlag::DEPTH, 1.0f);
 
 	// Set pipeline state
 	commandList.SetGraphicsPipelineLayout(m_pipelineLayouts[BASE_PASS]);
@@ -461,7 +459,7 @@ void Renderer::render(const CommandList& commandList, bool isGroundTruth, bool n
 	commandList.RSSetViewports(1, &viewport);
 	commandList.RSSetScissorRects(1, &scissorRect);
 
-	commandList.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	commandList.IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
 
 	// Set descriptor tables
 	commandList.SetGraphics32BitConstants(VS_CONSTANTS, SizeOfInUint32(m_cbBasePass), &m_cbBasePass);
@@ -489,7 +487,7 @@ void Renderer::environment(const CommandList& commandList)
 	// Set pipeline state
 	commandList.SetPipelineState(m_pipelines[ENVIRONMENT]);
 
-	commandList.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	commandList.IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
 	commandList.Draw(3, 1, 0, 0);
 }
 
@@ -504,12 +502,12 @@ void Renderer::temporalAA(const CommandList& commandList)
 	commandList.SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
 
 	ResourceBarrier barriers[4];
-	auto numBarriers = m_outputViews[UAV_PP_TAA + m_frameParity].SetBarrier(barriers, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	numBarriers = m_renderTargets[RT_COLOR].SetBarrier(barriers, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, numBarriers);
-	numBarriers = m_outputViews[UAV_PP_TAA + !m_frameParity].SetBarrier(barriers, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE |
-		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, numBarriers, 0xffffffff, D3D12_RESOURCE_BARRIER_FLAG_END_ONLY);
-	numBarriers = m_renderTargets[RT_VELOCITY].SetBarrier(barriers, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-		numBarriers, 0xffffffff, D3D12_RESOURCE_BARRIER_FLAG_END_ONLY);
+	auto numBarriers = m_outputViews[UAV_PP_TAA + m_frameParity].SetBarrier(barriers, ResourceState::UNORDERED_ACCESS);
+	numBarriers = m_renderTargets[RT_COLOR].SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
+	numBarriers = m_outputViews[UAV_PP_TAA + !m_frameParity].SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE |
+		ResourceState::PIXEL_SHADER_RESOURCE, numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::END_ONLY);
+	numBarriers = m_renderTargets[RT_VELOCITY].SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE,
+		numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::END_ONLY);
 	commandList.Barrier(numBarriers, barriers);
 
 	// Set descriptor tables
