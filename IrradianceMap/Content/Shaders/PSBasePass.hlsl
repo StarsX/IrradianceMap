@@ -93,8 +93,8 @@ PSOut main(PSIn input)
 	radiance *= 0.04 * ambient.x + ambient.y;
 #endif
 
-	irradiance *= 1.3;
-	irradiance = pow(abs(irradiance), clamp(1.0 / irradiance.x, 1.0, 1.85));
+	//irradiance *= 1.3;
+	//irradiance = pow(abs(irradiance), clamp(1.0 / irradiance.x, 1.0, 1.85));
 	//output.Color = min16float4(norm * 0.5 + 0.5, 1.0);
 	output.Color = min16float4(irradiance + radiance, 1.0);
 	//output.Color = min16float4(irradiance, 1.0);
