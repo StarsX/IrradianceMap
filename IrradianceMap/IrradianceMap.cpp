@@ -75,8 +75,7 @@ void IrradianceMap::LoadPipeline()
 	{
 		dxgiAdapter = nullptr;
 		ThrowIfFailed(factory->EnumAdapters1(i, &dxgiAdapter));
-		hr = D3D12CreateDevice(dxgiAdapter.get(), D3D_FEATURE_LEVEL_11_0,
-			__uuidof(*static_cast<ID3D12Device*>(m_device.get())), &m_device);
+		hr = D3D12CreateDevice(dxgiAdapter.get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&m_device));
 	}
 
 	dxgiAdapter->GetDesc1(&dxgiAdapterDesc);
