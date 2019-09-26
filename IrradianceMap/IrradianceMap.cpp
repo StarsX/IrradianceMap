@@ -29,6 +29,14 @@ IrradianceMap::IrradianceMap(uint32_t width, uint32_t height, std::wstring name)
 	m_meshFileName("Media/bunny.obj"),
 	m_meshPosScale(0.0f, 0.0f, 0.0f, 1.0f)
 {
+#if defined (_DEBUG)
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+	AllocConsole();
+	FILE* stream;
+	freopen_s(&stream, "CONOUT$", "w+t", stdout);
+	freopen_s(&stream, "CONIN$", "r+t", stdin);
+#endif
+
 	m_envFileNames =
 	{
 		L"Media/uffizi_cross.dds",
@@ -37,6 +45,13 @@ IrradianceMap::IrradianceMap(uint32_t width, uint32_t height, std::wstring name)
 		L"Media/galileo_cross.dds",
 		L"Media/stpeters_cross.dds"
 	};
+}
+
+IrradianceMap::~IrradianceMap()
+{
+#if defined (_DEBUG)
+	FreeConsole();
+#endif
 }
 
 void IrradianceMap::OnInit()

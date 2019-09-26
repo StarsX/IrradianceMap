@@ -27,6 +27,7 @@ class IrradianceMap : public DXFramework
 {
 public:
 	IrradianceMap(uint32_t width, uint32_t height, std::wstring name);
+	virtual ~IrradianceMap();
 
 	virtual void OnInit();
 	virtual void OnUpdate();

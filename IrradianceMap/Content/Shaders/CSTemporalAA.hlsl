@@ -68,8 +68,8 @@ min16float4 VelocityMax(int2 tex)
 //--------------------------------------------------------------------------------------
 // Minimum and maxinum of the neighbor samples, returning Gaussian blurred color
 //--------------------------------------------------------------------------------------
-min16float4 NeighborMinMax(out min16float4 neighborMin, out min16float4 neighborMax,
-	min16float4 center, int2 tex, min16float gamma = 1.0)
+min16float3 NeighborMinMax(out min16float4 neighborMin, out min16float4 neighborMax,
+	min16float3 mu, int2 tex, min16float gamma = 1.0)
 {
 	static min16float weights[] =
 	{
@@ -77,40 +77,38 @@ min16float4 NeighborMinMax(out min16float4 neighborMin, out min16float4 neighbor
 		0.25, 0.25, 0.25, 0.25
 	};
 
-	min16float4 neighbors[NUM_NEIGHBORS];
+	float3 neighbors[NUM_NEIGHBORS];
 	[unroll]
 	for (uint i = 0; i < NUM_NEIGHBORS; ++i)
-		neighbors[i] = min16float4(g_txCurrent[tex + g_texOffsets[i]]);
+		neighbors[i] = g_txCurrent[tex + g_texOffsets[i]].xyz;
 
-	min16float4 gaussian = center;
+	min16float3 gaussian = mu;
 
 #if	_VARIANCE_AABB_
 #define m1	mu
-	min16float3 mu = center.xyz;
 	min16float3 m2 = m1 * m1;
 #else
 	neighborMin.xyz = neighborMax.xyz = mu;
-	neighborMin.xyz = min(current, neighborMin.xyz);
-	neighborMax.xyz = max(current, neighborMax.xyz);
 #endif
 
 	//[unroll]
 	for (i = 0; i < NUM_NEIGHBORS; ++i)
 	{
-		gaussian += neighbors[i] * weights[i];
+		const min16float3 neighbor = min16float3(neighbors[i]);
+		gaussian += neighbor * weights[i];
 
 #if	_VARIANCE_AABB_
-		m1 += neighbors[i].xyz;
-		m2 += neighbors[i].xyz * neighbors[i].xyz;
+		m1 += neighbor;
+		m2 = min16float3(m2 + neighbors[i] * neighbors[i]);
 #else
-		neighborMin.xyz = min(neighbors[i], neighborMin.xyz);
-		neighborMax.xyz = max(neighbors[i], neighborMax.xyz);
+		neighborMin.xyz = min(neighbor, neighborMin.xyz);
+		neighborMax.xyz = max(neighbor, neighborMax.xyz);
 #endif
 	}
 
 #if	_VARIANCE_AABB_
 	mu /= NUM_SAMPLES;
-	const min16float3 sigma = sqrt(abs(m2 / NUM_SAMPLES - mu * mu));
+	const min16float3 sigma = sqrt(abs(m2 / NUM_SAMPLES - min16float3((float3)mu * mu)));
 	const min16float3 gsigma = gamma * sigma;
 	neighborMin.xyz = mu - gsigma;
 	neighborMax.xyz = mu + gsigma;
@@ -164,8 +162,8 @@ void main(uint2 DTid : SV_DispatchThreadID)
 	history.w = history.w * g_historyMax + 1.0;
 
 	min16float4 neighborMin, neighborMax;
-	const min16float gamma = historyDiv > 0.0 || current.w <= 0.0 ? 1.0 : 16.0;
-	min16float4 filtered = NeighborMinMax(neighborMin, neighborMax, current, DTid, gamma);
+	const min16float gamma = historyDiv > 0.0 || current.w < 1.0 ? 1.0 : 16.0;
+	min16float3 filtered = NeighborMinMax(neighborMin, neighborMax, current.xyz, DTid, gamma);
 	
 	const min16float lumHist = GET_LUMA(history.xyz);
 	history.xyz = clipColor(history.xyz, neighborMin.xyz, neighborMax.xyz);
@@ -176,7 +174,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
 	static const min16float lumContrastFactor = 32.0;
 	min16float addAlias = historyBlur * 0.5 + 0.25;
 	addAlias = saturate(addAlias + 1.0 / (1.0 + contrast * lumContrastFactor));
-	filtered.xyz = lerp(filtered.xyz, current.xyz, addAlias);
+	filtered = lerp(filtered, current.xyz, addAlias);
 
 	// Calculate Blend factor
 	const min16float distToClamp = min(abs(neighborMin.w - lumHist), abs(neighborMax.w - lumHist));
@@ -184,9 +182,8 @@ void main(uint2 DTid : SV_DispatchThreadID)
 	const min16float historyFactor = distToClamp * historyAmt * (1.0 + historyBlur * historyAmt * 8.0);
 	min16float blend = clamp(historyFactor / (distToClamp + contrast), 0.03125, 0.25);
 	//min16float blend = clamp(1.0 / history.w, 0.125, 0.25);
-	//blend = filtered.w > 0.0 ? blend : 0.0;
 
-	const min16float3 result = lerp(history.xyz, filtered.xyz, blend);
+	const min16float3 result = lerp(history.xyz, filtered, blend);
 	history.w = min(history.w / g_historyMax, 1.0 - historyBlur);
 
 	g_rwRenderTarget[DTid] = float4(result, history.w);
