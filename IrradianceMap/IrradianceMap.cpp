@@ -341,13 +341,19 @@ void IrradianceMap::ParseCommandLineArgs(wchar_t* argv[], int argc)
 			m_meshPosScale.z = i + 4 < argc ? static_cast<float>(_wtof(argv[i + 4])) : m_meshPosScale.z;
 			m_meshPosScale.w = i + 5 < argc ? static_cast<float>(_wtof(argv[i + 5])) : m_meshPosScale.w;
 		}
-
-		if (_wcsnicmp(argv[i], L"-env", wcslen(argv[i])) == 0 ||
+		else if (_wcsnicmp(argv[i], L"-env", wcslen(argv[i])) == 0 ||
 			_wcsnicmp(argv[i], L"/env", wcslen(argv[i])) == 0)
 		{
 			m_envFileNames.clear();
 			for (auto j = i + 1; j < argc; ++j)
 				m_envFileNames.push_back(argv[j]);
+		}
+		else if (_wcsnicmp(argv[i], L"-gt", wcslen(argv[i])) == 0 ||
+			_wcsnicmp(argv[i], L"/gt", wcslen(argv[i])) == 0)
+		{
+			m_envFileNames.clear();
+			if (i + 1 < argc) m_envFileNames.push_back(argv[i + 1]);
+			g_isGroundTruth = true;
 		}
 	}
 }
