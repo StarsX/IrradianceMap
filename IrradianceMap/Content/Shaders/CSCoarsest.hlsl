@@ -4,8 +4,7 @@
 
 #include "CSCubeMap.hlsli"
 
-#define PI				3.141592654
-#define MAX_LEVEL_COUNT	11
+#define PI	3.141592654
 
 //--------------------------------------------------------------------------------------
 // Constant buffer
@@ -14,14 +13,12 @@ cbuffer cb
 {
 	float	g_mapSize;
 	uint	g_level;
-	uint	g_numLevels;
 };
 
 //--------------------------------------------------------------------------------------
 // Textures
 //--------------------------------------------------------------------------------------
 TextureCube					g_txSource;
-TextureCube					g_txCoarser;
 RWTexture2DArray<float4>	g_rwDest;
 
 //--------------------------------------------------------------------------------------
@@ -35,31 +32,36 @@ SamplerState	g_smpLinear;
 [numthreads(8, 8, 1)]
 void main(uint3 DTid : SV_DispatchThreadID)
 {
-	// Fetch the color of the current level and the resolved color at the coarser level
+	const float3 posNeighbors[] =
+	{
+		{ -1.0, 0.0, 0.5 },
+		{ 1.0, 0.0, 0.5 },
+		{ 0.0, -1.0, 0.5 },
+		{ 0.0, 1.0, 0.5 }
+	};
+
+	float3 texNeighbors[4];
+	[unroll] for (uint i = 0; i < 4; ++i)
+		texNeighbors[i] = GetCubeTexcoord(DTid.z, posNeighbors[i]);
+
 	const float3 tex = GetCubeTexcoord(DTid, g_rwDest);
-	const float4 src = g_txSource.SampleLevel(g_smpLinear, tex, 0.0);
-	const float4 coarser = g_txCoarser.SampleLevel(g_smpLinear, tex, 0.0);
+	float4 src = g_txSource.SampleLevel(g_smpLinear, tex, 0.0);
+
+	float4 neighbors[4];
+	[unroll] for (i = 0; i < 4; ++i)
+		neighbors[i] = g_txSource.SampleLevel(g_smpLinear, texNeighbors[i], 0.0);
+
+	float4 coarser = src;
+	coarser += (neighbors[0] + neighbors[1] + neighbors[2] + neighbors[3]) * 0.5;
+	coarser /= 1.0 + 0.5 * 4.0;
 
 	// Cosine-approximating Haar coefficients (weights of box filters)
 	const float s = g_mapSize;
 	const float a = PI / (s * 4.0);
 
-#ifdef _PREINTEGRATED_
-	const float pi2 = PI * PI;
-	const float pi3 = pi2 * PI;
-	const float s2 = s * s;
-	const float s3 = s2 * s;
-
-	float2 sinCos;
-	sincos((1 << g_level) * a, sinCos.x, sinCos.y);
-	const float numerator = (1 << (g_level * 3)) * pi3 * sinCos.x * log(2.0);
-	const float denormC = (128.0 * s3 - (1 << (g_level * 2 + 4)) * s * pi2) * sinCos.y;
-	const float denormS = (1 << (g_level + 5)) * s2 * PI * sinCos.x;
-	const float denorminator = denormC - denormS + 64.0 * s3 * PI;
-	float weight = numerator / denorminator;//saturate(numerator / denorminator);
-#else
 	float wsum = 0.0, weight = 0.0;
-	for (uint i = g_level; i < g_numLevels; ++i)
+	[unroll]
+	for (i = g_level; i <= g_level + 1; ++i)
 	{
 		//const float w = (1 << (i * 3)) * log(2.0) * a * sin((1 << i) * a);
 		const float w = (1 << (i * 3)) * sin((1 << i) * a);
@@ -68,7 +70,6 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	}
 
 	weight = wsum > 0.0 ? weight / wsum : 1.0;
-#endif
 
 	g_rwDest[DTid] = lerp(coarser, src, weight);
 }

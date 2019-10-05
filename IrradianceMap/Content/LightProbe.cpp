@@ -8,8 +8,8 @@ using namespace XUSG;
 struct CosConstants
 {
 	float		MapSize;
-	uint32_t	NumLevels;
 	uint32_t	Level;
+	uint32_t	NumLevels;
 };
 
 LightProbe::LightProbe(const Device& device) :
@@ -339,6 +339,7 @@ void LightProbe::process(const CommandList& commandList, ResourceState dstState)
 	commandList.Barrier(numBarriers, barriers);
 	numBarriers = 0;
 
+	CosConstants cb = { m_mapSize, numPasses, m_numMips };
 	commandList.SetComputeDescriptorTable(1, m_uavSrvTables[TABLE_DOWN_SAMPLE][numPasses]);
 	commandList.Dispatch(1, 1, 6);
 
@@ -347,7 +348,6 @@ void LightProbe::process(const CommandList& commandList, ResourceState dstState)
 	commandList.SetPipelineState(m_pipelines[UP_SAMPLE]);
 	commandList.SetComputeDescriptorTable(0, m_samplerTable);
 
-	CosConstants cb = { m_mapSize, m_numMips };
 	for (auto i = 0ui8; i < numPasses; ++i)
 	{
 		const auto c = numPasses - i;

@@ -2,15 +2,9 @@
 // By Stars XU Tianchen
 //--------------------------------------------------------------------------------------
 
-float3 GetCubeTexcoord(uint3 index, float3 dim)
+float3 GetCubeTexcoord(uint slice, float3 pos)
 {
-	const float2 radii = dim.xy * 0.5;
-	float2 xy = index.xy - radii + 0.5;
-	xy.y = -xy.y;
-
-	const float3 pos = { xy, radii.x };
-
-	switch (index.z)
+	switch (slice)
 	{
 	case 0:
 		return float3(pos.z, pos.y, -pos.x);
@@ -27,6 +21,17 @@ float3 GetCubeTexcoord(uint3 index, float3 dim)
 	default:
 		return pos;
 	}
+}
+
+float3 GetCubeTexcoord(uint3 index, float3 dim)
+{
+	const float2 radii = dim.xy * 0.5;
+	float2 xy = index.xy - radii + 0.5;
+	xy.y = -xy.y;
+
+	const float3 pos = { xy, radii.x };
+
+	return GetCubeTexcoord(index.z, pos);
 }
 
 float3 GetCubeTexcoord(uint3 index, RWTexture2DArray<float4> cubeMap)
