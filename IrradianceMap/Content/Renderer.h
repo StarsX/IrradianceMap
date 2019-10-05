@@ -9,6 +9,13 @@
 class Renderer
 {
 public:
+	enum RenderMode : uint8_t
+	{
+		MIP_APPROX,
+		SH_APPROX,
+		GROUND_TRUTH
+	};
+
 	Renderer(const XUSG::Device& device);
 	virtual ~Renderer();
 
@@ -23,9 +30,7 @@ public:
 	void UpdateFrame(uint32_t frameIndex, DirectX::CXMVECTOR eyePt,
 		DirectX::CXMMATRIX viewProj, float glossy, bool isPaused);
 	void Render(const XUSG::CommandList& commandList, uint32_t frameIndex, XUSG::ResourceBarrier* barriers,
-		uint32_t numBarriers = 0, bool isGroundTruth = false, bool needClear = false);
-	void RenderSH(const XUSG::CommandList& commandList, uint32_t frameIndex, XUSG::ResourceBarrier* barriers,
-		uint32_t numBarriers = 0, bool needClear = false);
+		uint32_t numBarriers = 0, RenderMode mode = MIP_APPROX, bool needClear = false);
 	void ToneMap(const XUSG::CommandList& commandList, const XUSG::Descriptor& rtv,
 		uint32_t numBarriers, XUSG::ResourceBarrier* pBarriers);
 
@@ -116,8 +121,7 @@ protected:
 	bool createPipelines(XUSG::Format rtFormat);
 	bool createDescriptorTables();
 
-	void render(const XUSG::CommandList& commandList, bool isGroundTruth, bool needClear);
-	void renderSH(const XUSG::CommandList& commandList, bool needClear);
+	void render(const XUSG::CommandList& commandList, RenderMode mode, bool needClear);
 	void environment(const XUSG::CommandList& commandList);
 	void temporalAA(const XUSG::CommandList& commandList);
 

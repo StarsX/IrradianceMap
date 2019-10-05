@@ -18,7 +18,7 @@ const float g_FOVAngleY = XM_PIDIV4;
 const float g_zNear = 1.0f;
 const float g_zFar = 1000.0f;
 
-bool g_isGroundTruth = false;
+Renderer::RenderMode g_renderMode = Renderer::MIP_APPROX;
 
 IrradianceMap::IrradianceMap(uint32_t width, uint32_t height, std::wstring name) :
 	DXFramework(width, height, name),
@@ -164,14 +164,20 @@ void IrradianceMap::LoadAssets()
 	if (!m_renderer->SetLightProbes(m_lightProbe->GetIrradiance().GetSRV(), m_lightProbe->GetRadiance().GetSRV()))
 		ThrowIfFailed(E_FAIL);
 
-	const auto pIrradianctGT = m_lightProbe->GetIrradianceGT(m_commandList, (m_envFileNames[0] + L"_gt.dds").c_str(), &uploaders);
-	if (!m_renderer->SetLightProbesGT(pIrradianctGT->GetSRV(), m_lightProbe->GetRadiance().GetSRV()))
-		ThrowIfFailed(E_FAIL);
-
-	const auto cbvSH = m_lightProbe->GetSH(m_commandList, L"", &uploaders);
-	if (!m_renderer->SetLightProbesSH(cbvSH))
-		ThrowIfFailed(E_FAIL);
-
+	switch (g_renderMode)
+	{
+	case Renderer::SH_APPROX:
+		const auto cbvSH = m_lightProbe->GetSH(m_commandList, L"", &uploaders);
+		if (!m_renderer->SetLightProbesSH(cbvSH))
+			ThrowIfFailed(E_FAIL);
+		break;
+	case Renderer::GROUND_TRUTH:
+		const auto pIrradianctGT = m_lightProbe->GetIrradianceGT(m_commandList, (m_envFileNames[0] + L"_gt.dds").c_str(), &uploaders);
+		if (!m_renderer->SetLightProbesGT(pIrradianctGT->GetSRV(), m_lightProbe->GetRadiance().GetSRV()))
+			ThrowIfFailed(E_FAIL);
+		break;
+	}
+	
 	// Close the command list and execute it to begin the initial GPU setup.
 	ThrowIfFailed(m_commandList.Close());
 	BaseCommandList* const ppCommandLists[] = { m_commandList.GetCommandList().get() };
@@ -225,7 +231,7 @@ void IrradianceMap::OnUpdate()
 	const auto eyePt = XMLoadFloat3(&m_eyePt);
 	const auto view = XMLoadFloat4x4(&m_view);
 	const auto proj = XMLoadFloat4x4(&m_proj);
-	m_lightProbe->UpdateFrame(g_isGroundTruth ? 0.0 : time);
+	m_lightProbe->UpdateFrame(g_renderMode == Renderer::MIP_APPROX ? time : 0.0);
 	m_renderer->UpdateFrame(m_frameIndex, eyePt, view * proj, m_glossy, m_isPaused);
 }
 
@@ -356,12 +362,19 @@ void IrradianceMap::ParseCommandLineArgs(wchar_t* argv[], int argc)
 			for (auto j = i + 1; j < argc; ++j)
 				m_envFileNames.emplace_back(argv[j]);
 		}
+		else if (_wcsnicmp(argv[i], L"-sh", wcslen(argv[i])) == 0 ||
+			_wcsnicmp(argv[i], L"/sh", wcslen(argv[i])) == 0)
+		{
+			m_envFileNames.clear();
+			if (i + 1 < argc) m_envFileNames.emplace_back(argv[i + 1]);
+			g_renderMode = Renderer::SH_APPROX;
+		}
 		else if (_wcsnicmp(argv[i], L"-gt", wcslen(argv[i])) == 0 ||
 			_wcsnicmp(argv[i], L"/gt", wcslen(argv[i])) == 0)
 		{
 			m_envFileNames.clear();
 			if (i + 1 < argc) m_envFileNames.emplace_back(argv[i + 1]);
-			g_isGroundTruth = true;
+			g_renderMode = Renderer::GROUND_TRUTH;
 		}
 	}
 }
@@ -388,8 +401,7 @@ void IrradianceMap::PopulateCommandList()
 		numBarriers = m_lightProbe->GetIrradiance().SetBarrier(barriers, 0, dstState, numBarriers, i);
 	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, ResourceState::RENDER_TARGET,
 		numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
-	m_renderer->Render(m_commandList, m_frameIndex, barriers, numBarriers, g_isGroundTruth);
-	//m_renderer->RenderSH(m_commandList, m_frameIndex, barriers, numBarriers, g_isGroundTruth);
+	m_renderer->Render(m_commandList, m_frameIndex, barriers, numBarriers, g_renderMode);
 
 	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, ResourceState::RENDER_TARGET,
 		0, BARRIER_ALL_SUBRESOURCES, BarrierFlag::END_ONLY);

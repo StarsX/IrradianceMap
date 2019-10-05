@@ -185,7 +185,7 @@ void Renderer::UpdateFrame(uint32_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewP
 }
 
 void Renderer::Render(const CommandList& commandList, uint32_t frameIndex, ResourceBarrier* barriers,
-	uint32_t numBarriers, bool isGroundTruth, bool needClear)
+	uint32_t numBarriers, RenderMode mode, bool needClear)
 {
 	numBarriers = m_renderTargets[RT_COLOR].SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
 	numBarriers = m_renderTargets[RT_VELOCITY].SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
@@ -193,26 +193,7 @@ void Renderer::Render(const CommandList& commandList, uint32_t frameIndex, Resou
 	numBarriers = m_outputViews[UAV_PP_TAA + !m_frameParity].SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE |
 		ResourceState::PIXEL_SHADER_RESOURCE, numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
 	commandList.Barrier(numBarriers, barriers);
-	render(commandList, isGroundTruth, needClear);
-
-	numBarriers = m_renderTargets[RT_VELOCITY].SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE,
-		0, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
-	commandList.Barrier(numBarriers, barriers);
-
-	environment(commandList);
-
-	temporalAA(commandList);
-}
-
-void Renderer::RenderSH(const CommandList& commandList, uint32_t frameIndex, ResourceBarrier* barriers, uint32_t numBarriers, bool needClear)
-{
-	numBarriers = m_renderTargets[RT_COLOR].SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
-	numBarriers = m_renderTargets[RT_VELOCITY].SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
-	numBarriers = m_depth.SetBarrier(barriers, ResourceState::DEPTH_WRITE, numBarriers);
-	numBarriers = m_outputViews[UAV_PP_TAA + !m_frameParity].SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE |
-		ResourceState::PIXEL_SHADER_RESOURCE, numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
-	commandList.Barrier(numBarriers, barriers);
-	renderSH(commandList, needClear);
+	render(commandList, mode, needClear);
 
 	numBarriers = m_renderTargets[RT_VELOCITY].SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE,
 		0, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
@@ -498,7 +479,7 @@ bool Renderer::createDescriptorTables()
 	return true;
 }
 
-void Renderer::render(const CommandList& commandList, bool isGroundTruth, bool needClear)
+void Renderer::render(const CommandList& commandList, RenderMode mode, bool needClear)
 {
 	// Set render target
 	commandList.OMSetRenderTargets(NUM_RENDER_TARGET, m_rtvTable, &m_depth.GetDSV());
@@ -511,8 +492,9 @@ void Renderer::render(const CommandList& commandList, bool isGroundTruth, bool n
 	commandList.ClearDepthStencilView(m_depth.GetDSV(), ClearFlag::DEPTH, 1.0f);
 
 	// Set pipeline state
-	commandList.SetGraphicsPipelineLayout(m_pipelineLayouts[BASE_PASS]);
-	commandList.SetPipelineState(m_pipelines[BASE_PASS]);
+	const auto pipeIdx = mode == SH_APPROX ? BASE_PASS_SH : BASE_PASS;
+	commandList.SetGraphicsPipelineLayout(m_pipelineLayouts[pipeIdx]);
+	commandList.SetPipelineState(m_pipelines[pipeIdx]);
 
 	// Set viewport
 	Viewport viewport(0.0f, 0.0f, static_cast<float>(m_viewport.x), static_cast<float>(m_viewport.y));
@@ -525,45 +507,9 @@ void Renderer::render(const CommandList& commandList, bool isGroundTruth, bool n
 	// Set descriptor tables
 	commandList.SetGraphics32BitConstants(VS_CONSTANTS, SizeOfInUint32(m_cbBasePass), &m_cbBasePass);
 	commandList.SetGraphics32BitConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT4), &m_cbPerFrame);
-	commandList.SetGraphicsDescriptorTable(SHADER_RESOURCES, m_srvTables[isGroundTruth ? SRV_TABLE_GT : SRV_TABLE_BASE]);
+	commandList.SetGraphicsDescriptorTable(SHADER_RESOURCES, m_srvTables[mode == GROUND_TRUTH ? SRV_TABLE_GT : SRV_TABLE_BASE]);
 	commandList.SetGraphicsDescriptorTable(SAMPLER, m_samplerTable);
-
-	commandList.IASetVertexBuffers(0, 1, &m_vertexBuffer.GetVBV());
-	commandList.IASetIndexBuffer(m_indexBuffer.GetIBV());
-
-	commandList.DrawIndexed(m_numIndices, 1, 0, 0, 0);
-}
-
-void Renderer::renderSH(const CommandList& commandList, bool needClear)
-{
-	// Set render target
-	commandList.OMSetRenderTargets(NUM_RENDER_TARGET, m_rtvTable, &m_depth.GetDSV());
-
-	// Clear render target
-	const float clearColor[4] = { 0.2f, 0.2f, 0.7f, 0.0f };
-	const float clearColorNull[4] = {};
-	if (needClear) commandList.ClearRenderTargetView(m_renderTargets[RT_COLOR].GetRTV(), clearColor);
-	commandList.ClearRenderTargetView(m_renderTargets[RT_VELOCITY].GetRTV(), clearColorNull);
-	commandList.ClearDepthStencilView(m_depth.GetDSV(), ClearFlag::DEPTH, 1.0f);
-
-	// Set pipeline state
-	commandList.SetGraphicsPipelineLayout(m_pipelineLayouts[BASE_PASS_SH]);
-	commandList.SetPipelineState(m_pipelines[BASE_PASS_SH]);
-
-	// Set viewport
-	Viewport viewport(0.0f, 0.0f, static_cast<float>(m_viewport.x), static_cast<float>(m_viewport.y));
-	RectRange scissorRect(0, 0, m_viewport.x, m_viewport.y);
-	commandList.RSSetViewports(1, &viewport);
-	commandList.RSSetScissorRects(1, &scissorRect);
-
-	commandList.IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
-
-	// Set descriptor tables
-	commandList.SetGraphics32BitConstants(VS_CONSTANTS, SizeOfInUint32(m_cbBasePass), &m_cbBasePass);
-	commandList.SetGraphics32BitConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT4), &m_cbPerFrame);
-	commandList.SetGraphicsDescriptorTable(CBUFFER, m_cbvTable);
-	commandList.SetGraphicsDescriptorTable(SHADER_RESOURCES, m_srvTables[SRV_TABLE_BASE]);
-	commandList.SetGraphicsDescriptorTable(SAMPLER, m_samplerTable);
+	if (mode == SH_APPROX) commandList.SetGraphicsDescriptorTable(CBUFFER, m_cbvTable);
 
 	commandList.IASetVertexBuffers(0, 1, &m_vertexBuffer.GetVBV());
 	commandList.IASetIndexBuffer(m_indexBuffer.GetIBV());
