@@ -23,8 +23,9 @@ bool g_isGroundTruth = false;
 IrradianceMap::IrradianceMap(uint32_t width, uint32_t height, std::wstring name) :
 	DXFramework(width, height, name),
 	m_frameIndex(0),
+	m_glossy(1.0f),
 	m_showFPS(true),
-	m_isPaused(false),
+	m_isPaused(true),
 	m_tracking(false),
 	m_meshFileName("Media/bunny.obj"),
 	m_meshPosScale(0.0f, 0.0f, 0.0f, 1.0f)
@@ -167,6 +168,10 @@ void IrradianceMap::LoadAssets()
 	if (!m_renderer->SetLightProbesGT(pIrradianctGT->GetSRV(), m_lightProbe->GetRadiance().GetSRV()))
 		ThrowIfFailed(E_FAIL);
 
+	const auto cbvSH = m_lightProbe->GetSH(m_commandList, L"", &uploaders);
+	if (!m_renderer->SetLightProbesSH(cbvSH))
+		ThrowIfFailed(E_FAIL);
+
 	// Close the command list and execute it to begin the initial GPU setup.
 	ThrowIfFailed(m_commandList.Close());
 	BaseCommandList* const ppCommandLists[] = { m_commandList.GetCommandList().get() };
@@ -221,7 +226,7 @@ void IrradianceMap::OnUpdate()
 	const auto view = XMLoadFloat4x4(&m_view);
 	const auto proj = XMLoadFloat4x4(&m_proj);
 	m_lightProbe->UpdateFrame(g_isGroundTruth ? 0.0 : time);
-	m_renderer->UpdateFrame(m_frameIndex, eyePt, view * proj, m_isPaused);
+	m_renderer->UpdateFrame(m_frameIndex, eyePt, view * proj, m_glossy, m_isPaused);
 }
 
 // Render the scene.
@@ -259,6 +264,9 @@ void IrradianceMap::OnKeyUp(uint8_t key)
 		break;
 	case 0x70:	//case VK_F1:
 		m_showFPS = !m_showFPS;
+		break;
+	case 'G':
+		m_glossy = 1.0f - m_glossy;
 		break;
 	}
 }
@@ -346,13 +354,13 @@ void IrradianceMap::ParseCommandLineArgs(wchar_t* argv[], int argc)
 		{
 			m_envFileNames.clear();
 			for (auto j = i + 1; j < argc; ++j)
-				m_envFileNames.push_back(argv[j]);
+				m_envFileNames.emplace_back(argv[j]);
 		}
 		else if (_wcsnicmp(argv[i], L"-gt", wcslen(argv[i])) == 0 ||
 			_wcsnicmp(argv[i], L"/gt", wcslen(argv[i])) == 0)
 		{
 			m_envFileNames.clear();
-			if (i + 1 < argc) m_envFileNames.push_back(argv[i + 1]);
+			if (i + 1 < argc) m_envFileNames.emplace_back(argv[i + 1]);
 			g_isGroundTruth = true;
 		}
 	}
@@ -381,6 +389,7 @@ void IrradianceMap::PopulateCommandList()
 	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, ResourceState::RENDER_TARGET,
 		numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
 	m_renderer->Render(m_commandList, m_frameIndex, barriers, numBarriers, g_isGroundTruth);
+	//m_renderer->RenderSH(m_commandList, m_frameIndex, barriers, numBarriers, g_isGroundTruth);
 
 	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, ResourceState::RENDER_TARGET,
 		0, BARRIER_ALL_SUBRESOURCES, BarrierFlag::END_ONLY);

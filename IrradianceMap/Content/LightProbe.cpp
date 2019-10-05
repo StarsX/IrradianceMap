@@ -39,7 +39,7 @@ bool LightProbe::Init(const CommandList& commandList, uint32_t width, uint32_t h
 		DDS::Loader textureLoader;
 		DDS::AlphaMode alphaMode;
 
-		uploaders.push_back(nullptr);
+		uploaders.emplace_back();
 		N_RETURN(textureLoader.CreateTextureFromFile(m_device, commandList, pFileNames[i].c_str(),
 			8192, false, m_sources[i], uploaders.back(), &alphaMode), false);
 
@@ -94,9 +94,9 @@ ResourceBase* LightProbe::GetIrradianceGT(const CommandList& commandList,
 		DDS::Loader textureLoader;
 		DDS::AlphaMode alphaMode;
 
-		pUploaders->push_back(nullptr);
+		pUploaders->emplace_back();
 		N_RETURN(textureLoader.CreateTextureFromFile(m_device, commandList, fileName,
-			8192, false, m_groundTruth, pUploaders->back(), &alphaMode), false);
+			8192, false, m_groundTruth, pUploaders->back(), &alphaMode), nullptr);
 	}
 
 	return m_groundTruth.get();
@@ -110,6 +110,38 @@ Texture2D& LightProbe::GetIrradiance()
 Texture2D& LightProbe::GetRadiance()
 {
 	return m_filtered[TABLE_DOWN_SAMPLE];
+}
+
+Descriptor LightProbe::GetSH(const CommandList& commandList,
+	const wchar_t* fileName, vector<Resource>* pUploaders)
+{
+	if (pUploaders)
+	{
+		// Create immutable constant buffer
+		N_RETURN(m_cbCoeffSH.Create(m_device, sizeof(XMFLOAT4[9]), 1,
+			nullptr, MemoryType::DEFAULT, L"cbCoeffSH"), Descriptor());
+
+		// Initialize the data
+		const float fCoeffSH[3][9] =
+		{
+			3.17645f, -3.70829f, -0.0266615f, 0.0814423f, -0.186518f, 0.0948620f, -2.79015f, -0.00564191f, -2.41370f,
+			3.08304f, -3.67873f, -0.0241826f, 0.0842786f, -0.188335f, 0.0879189f, -2.75383f, -0.00393165f, -2.40570f,
+			3.50625f, -4.27443f, -0.0307949f, 0.1134770f, -0.246335f, 0.1019110f, -3.18609f, -0.00245881f, -2.83863f
+		};
+		XMFLOAT4 cbCoeffSH[9];
+		for (auto i = 0ui8; i < 9; ++i)
+		{
+			cbCoeffSH[i].x = fCoeffSH[0][i];
+			cbCoeffSH[i].y = fCoeffSH[1][i];
+			cbCoeffSH[i].z = fCoeffSH[2][i];
+			cbCoeffSH[i].w = 0.0f;
+		}
+		pUploaders->emplace_back();
+
+		N_RETURN(m_cbCoeffSH.Upload(commandList, pUploaders->back(), cbCoeffSH, sizeof(cbCoeffSH)), Descriptor());
+	}
+
+	return m_cbCoeffSH.GetCBV();
 }
 
 bool LightProbe::createPipelineLayouts()

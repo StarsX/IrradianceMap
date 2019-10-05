@@ -25,6 +25,8 @@ public:
 		const wchar_t* fileName = nullptr, std::vector<XUSG::Resource>* pUploaders = nullptr);
 	XUSG::Texture2D& GetIrradiance();
 	XUSG::Texture2D& GetRadiance();
+	XUSG::Descriptor GetSH(const XUSG::CommandList& commandList,
+		const wchar_t* fileName = nullptr, std::vector<XUSG::Resource>* pUploaders = nullptr);
 
 protected:
 	enum PipelineIndex : uint8_t
@@ -69,6 +71,8 @@ protected:
 	std::shared_ptr<XUSG::ResourceBase> m_groundTruth;
 	std::vector<std::shared_ptr<XUSG::ResourceBase>> m_sources;
 	XUSG::Texture2D			m_filtered[NUM_UAV_SRV];
+
+	XUSG::ConstantBuffer	m_cbCoeffSH;
 
 	uint8_t					m_numMips;
 	float					m_mapSize;

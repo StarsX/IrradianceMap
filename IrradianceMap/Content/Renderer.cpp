@@ -84,6 +84,15 @@ bool Renderer::SetLightProbesGT(const Descriptor& irradiance, const Descriptor& 
 	return true;
 }
 
+bool Renderer::SetLightProbesSH(const Descriptor& coeffSH)
+{
+	Util::DescriptorTable cbvTable;
+	cbvTable.SetDescriptors(0, 1, &coeffSH);
+	X_RETURN(m_cbvTable, cbvTable.GetCbvSrvUavTable(*m_descriptorTableCache), false);
+
+	return true;
+}
+
 static const XMFLOAT2& IncrementalHalton()
 {
 	static auto haltonBase = XMUINT2(0, 0);
@@ -141,7 +150,7 @@ static const XMFLOAT2& IncrementalHalton()
 	return halton;
 }
 
-void Renderer::UpdateFrame(uint32_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewProj, bool isPaused)
+void Renderer::UpdateFrame(uint32_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewProj, float glossy, bool isPaused)
 {
 	{
 		static auto angle = 0.0f;
@@ -166,7 +175,8 @@ void Renderer::UpdateFrame(uint32_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewP
 	{
 		const auto projToWorld = XMMatrixInverse(nullptr, viewProj);
 		XMStoreFloat4x4(&m_cbPerFrame.ScreenToWorld, XMMatrixTranspose(projToWorld));
-		XMStoreFloat4(&m_cbPerFrame.EyePt, eyePt);
+		XMStoreFloat4(&m_cbPerFrame.EyePtGlossy, eyePt);
+		m_cbPerFrame.EyePtGlossy.w = glossy;
 		m_cbPerFrame.Viewport.x = static_cast<float>(m_viewport.x);
 		m_cbPerFrame.Viewport.y = static_cast<float>(m_viewport.y);
 	}
@@ -184,6 +194,25 @@ void Renderer::Render(const CommandList& commandList, uint32_t frameIndex, Resou
 		ResourceState::PIXEL_SHADER_RESOURCE, numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
 	commandList.Barrier(numBarriers, barriers);
 	render(commandList, isGroundTruth, needClear);
+
+	numBarriers = m_renderTargets[RT_VELOCITY].SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE,
+		0, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
+	commandList.Barrier(numBarriers, barriers);
+
+	environment(commandList);
+
+	temporalAA(commandList);
+}
+
+void Renderer::RenderSH(const CommandList& commandList, uint32_t frameIndex, ResourceBarrier* barriers, uint32_t numBarriers, bool needClear)
+{
+	numBarriers = m_renderTargets[RT_COLOR].SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
+	numBarriers = m_renderTargets[RT_VELOCITY].SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
+	numBarriers = m_depth.SetBarrier(barriers, ResourceState::DEPTH_WRITE, numBarriers);
+	numBarriers = m_outputViews[UAV_PP_TAA + !m_frameParity].SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE |
+		ResourceState::PIXEL_SHADER_RESOURCE, numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
+	commandList.Barrier(numBarriers, barriers);
+	renderSH(commandList, needClear);
 
 	numBarriers = m_renderTargets[RT_VELOCITY].SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE,
 		0, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
@@ -228,7 +257,7 @@ bool Renderer::createVB(const CommandList& commandList, uint32_t numVert,
 	N_RETURN(m_vertexBuffer.Create(m_device, numVert, stride, ResourceFlag::NONE,
 		MemoryType::DEFAULT, ResourceState::COPY_DEST, 1, nullptr, 1, nullptr,
 		1, nullptr, L"MeshVB"), false);
-	uploaders.push_back(nullptr);
+	uploaders.emplace_back();
 
 	return m_vertexBuffer.Upload(commandList, uploaders.back(), pData, stride * numVert,
 		ResourceState::NON_PIXEL_SHADER_RESOURCE);
@@ -243,7 +272,7 @@ bool Renderer::createIB(const CommandList& commandList, uint32_t numIndices,
 	N_RETURN(m_indexBuffer.Create(m_device, byteWidth, Format::R32_UINT,
 		ResourceFlag::NONE, MemoryType::DEFAULT, ResourceState::COPY_DEST,
 		1, nullptr, 1, nullptr, 1, nullptr, L"MeshIB"), false);
-	uploaders.push_back(nullptr);
+	uploaders.emplace_back();
 
 	return m_indexBuffer.Upload(commandList, uploaders.back(), pData,
 		byteWidth, ResourceState::NON_PIXEL_SHADER_RESOURCE);
@@ -269,12 +298,27 @@ bool Renderer::createPipelineLayouts()
 	{
 		Util::PipelineLayout pipelineLayout;
 		pipelineLayout.SetConstants(VS_CONSTANTS, SizeOfInUint32(BasePassConstants), 0, 0, Shader::Stage::VS);
-		pipelineLayout.SetConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT3), 0, 0, Shader::Stage::PS);
+		pipelineLayout.SetConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT4), 0, 0, Shader::Stage::PS);
 		pipelineLayout.SetRange(SHADER_RESOURCES, DescriptorType::SRV, 2, 0);
 		pipelineLayout.SetShaderStage(SHADER_RESOURCES, Shader::PS);
 		pipelineLayout.SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
 		pipelineLayout.SetShaderStage(SAMPLER, Shader::PS);
 		X_RETURN(m_pipelineLayouts[BASE_PASS], pipelineLayout.GetPipelineLayout(m_pipelineLayoutCache,
+			PipelineLayoutFlag::ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, L"BasePassLayout"), false);
+	}
+
+	// This is a pipeline layout for base pass SH
+	{
+		Util::PipelineLayout pipelineLayout;
+		pipelineLayout.SetConstants(VS_CONSTANTS, SizeOfInUint32(BasePassConstants), 0, 0, Shader::Stage::VS);
+		pipelineLayout.SetConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT4), 0, 0, Shader::Stage::PS);
+		pipelineLayout.SetRange(CBUFFER, DescriptorType::CBV, 1, 1);
+		pipelineLayout.SetShaderStage(CBUFFER, Shader::PS);
+		pipelineLayout.SetRange(SHADER_RESOURCES, DescriptorType::SRV, 1, 0);
+		pipelineLayout.SetShaderStage(SHADER_RESOURCES, Shader::PS);
+		pipelineLayout.SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout.SetShaderStage(SAMPLER, Shader::PS);
+		X_RETURN(m_pipelineLayouts[BASE_PASS_SH], pipelineLayout.GetPipelineLayout(m_pipelineLayoutCache,
 			PipelineLayoutFlag::ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, L"BasePassLayout"), false);
 	}
 
@@ -320,14 +364,14 @@ bool Renderer::createPipelines(Format rtFormat)
 	auto csIndex = 0u;
 
 	// Base pass
+	N_RETURN(m_shaderPool.CreateShader(Shader::Stage::VS, vsIndex, L"VSBasePass.cso"), false);
 	{
-		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::VS, vsIndex, L"VSBasePass.cso"), false);
 		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::PS, psIndex, L"PSBasePass.cso"), false);
 
 		Graphics::State state;
 		state.IASetInputLayout(m_inputLayout);
 		state.SetPipelineLayout(m_pipelineLayouts[BASE_PASS]);
-		state.SetShader(Shader::Stage::VS, m_shaderPool.GetShader(Shader::Stage::VS, vsIndex++));
+		state.SetShader(Shader::Stage::VS, m_shaderPool.GetShader(Shader::Stage::VS, vsIndex));
 		state.SetShader(Shader::Stage::PS, m_shaderPool.GetShader(Shader::Stage::PS, psIndex++));
 		state.IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
 		state.OMSetNumRenderTargets(NUM_RENDER_TARGET);
@@ -335,6 +379,23 @@ bool Renderer::createPipelines(Format rtFormat)
 		state.OMSetRTVFormat(RT_VELOCITY, Format::R16G16_FLOAT);
 		state.OMSetDSVFormat(Format::D24_UNORM_S8_UINT);
 		X_RETURN(m_pipelines[BASE_PASS], state.GetPipeline(m_graphicsPipelineCache, L"BasePass"), false);
+	}
+
+	// Base pass SH
+	{
+		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::PS, psIndex, L"PSBasePassSH.cso"), false);
+
+		Graphics::State state;
+		state.IASetInputLayout(m_inputLayout);
+		state.SetPipelineLayout(m_pipelineLayouts[BASE_PASS_SH]);
+		state.SetShader(Shader::Stage::VS, m_shaderPool.GetShader(Shader::Stage::VS, vsIndex++));
+		state.SetShader(Shader::Stage::PS, m_shaderPool.GetShader(Shader::Stage::PS, psIndex++));
+		state.IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
+		state.OMSetNumRenderTargets(NUM_RENDER_TARGET);
+		state.OMSetRTVFormat(RT_COLOR, Format::R16G16B16A16_FLOAT);
+		state.OMSetRTVFormat(RT_VELOCITY, Format::R16G16_FLOAT);
+		state.OMSetDSVFormat(Format::D24_UNORM_S8_UINT);
+		X_RETURN(m_pipelines[BASE_PASS_SH], state.GetPipeline(m_graphicsPipelineCache, L"BasePass"), false);
 	}
 
 	// Environment
@@ -463,8 +524,45 @@ void Renderer::render(const CommandList& commandList, bool isGroundTruth, bool n
 
 	// Set descriptor tables
 	commandList.SetGraphics32BitConstants(VS_CONSTANTS, SizeOfInUint32(m_cbBasePass), &m_cbBasePass);
-	commandList.SetGraphics32BitConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT3), &m_cbPerFrame);
+	commandList.SetGraphics32BitConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT4), &m_cbPerFrame);
 	commandList.SetGraphicsDescriptorTable(SHADER_RESOURCES, m_srvTables[isGroundTruth ? SRV_TABLE_GT : SRV_TABLE_BASE]);
+	commandList.SetGraphicsDescriptorTable(SAMPLER, m_samplerTable);
+
+	commandList.IASetVertexBuffers(0, 1, &m_vertexBuffer.GetVBV());
+	commandList.IASetIndexBuffer(m_indexBuffer.GetIBV());
+
+	commandList.DrawIndexed(m_numIndices, 1, 0, 0, 0);
+}
+
+void Renderer::renderSH(const CommandList& commandList, bool needClear)
+{
+	// Set render target
+	commandList.OMSetRenderTargets(NUM_RENDER_TARGET, m_rtvTable, &m_depth.GetDSV());
+
+	// Clear render target
+	const float clearColor[4] = { 0.2f, 0.2f, 0.7f, 0.0f };
+	const float clearColorNull[4] = {};
+	if (needClear) commandList.ClearRenderTargetView(m_renderTargets[RT_COLOR].GetRTV(), clearColor);
+	commandList.ClearRenderTargetView(m_renderTargets[RT_VELOCITY].GetRTV(), clearColorNull);
+	commandList.ClearDepthStencilView(m_depth.GetDSV(), ClearFlag::DEPTH, 1.0f);
+
+	// Set pipeline state
+	commandList.SetGraphicsPipelineLayout(m_pipelineLayouts[BASE_PASS_SH]);
+	commandList.SetPipelineState(m_pipelines[BASE_PASS_SH]);
+
+	// Set viewport
+	Viewport viewport(0.0f, 0.0f, static_cast<float>(m_viewport.x), static_cast<float>(m_viewport.y));
+	RectRange scissorRect(0, 0, m_viewport.x, m_viewport.y);
+	commandList.RSSetViewports(1, &viewport);
+	commandList.RSSetScissorRects(1, &scissorRect);
+
+	commandList.IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
+
+	// Set descriptor tables
+	commandList.SetGraphics32BitConstants(VS_CONSTANTS, SizeOfInUint32(m_cbBasePass), &m_cbBasePass);
+	commandList.SetGraphics32BitConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT4), &m_cbPerFrame);
+	commandList.SetGraphicsDescriptorTable(CBUFFER, m_cbvTable);
+	commandList.SetGraphicsDescriptorTable(SHADER_RESOURCES, m_srvTables[SRV_TABLE_BASE]);
 	commandList.SetGraphicsDescriptorTable(SAMPLER, m_samplerTable);
 
 	commandList.IASetVertexBuffers(0, 1, &m_vertexBuffer.GetVBV());

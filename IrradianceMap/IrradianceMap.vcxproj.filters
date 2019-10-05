@@ -225,5 +225,8 @@
     <FxCompile Include="Content\Shaders\CSRadiance.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
+    <FxCompile Include="Content\Shaders\PSBasePassSH.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

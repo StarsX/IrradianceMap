@@ -18,10 +18,14 @@ public:
 		const DirectX::XMFLOAT4& posScale = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f));
 	bool SetLightProbes(const XUSG::Descriptor& irradiance, const XUSG::Descriptor& radiance);
 	bool SetLightProbesGT(const XUSG::Descriptor& irradiance, const XUSG::Descriptor& radiance);
+	bool SetLightProbesSH(const XUSG::Descriptor& coeffSH);
 
-	void UpdateFrame(uint32_t frameIndex, DirectX::CXMVECTOR eyePt, DirectX::CXMMATRIX viewProj, bool isPaused);
+	void UpdateFrame(uint32_t frameIndex, DirectX::CXMVECTOR eyePt,
+		DirectX::CXMMATRIX viewProj, float glossy, bool isPaused);
 	void Render(const XUSG::CommandList& commandList, uint32_t frameIndex, XUSG::ResourceBarrier* barriers,
 		uint32_t numBarriers = 0, bool isGroundTruth = false, bool needClear = false);
+	void RenderSH(const XUSG::CommandList& commandList, uint32_t frameIndex, XUSG::ResourceBarrier* barriers,
+		uint32_t numBarriers = 0, bool needClear = false);
 	void ToneMap(const XUSG::CommandList& commandList, const XUSG::Descriptor& rtv,
 		uint32_t numBarriers, XUSG::ResourceBarrier* pBarriers);
 
@@ -32,12 +36,14 @@ protected:
 		SHADER_RESOURCES,
 		SAMPLER,
 		VS_CONSTANTS,
-		PS_CONSTANTS = OUTPUT_VIEW
+		CBUFFER,
+		PS_CONSTANTS = OUTPUT_VIEW,
 	};
 
 	enum PipelineIndex : uint8_t
 	{
 		BASE_PASS,
+		BASE_PASS_SH,
 		ENVIRONMENT,
 		TEMPORAL_AA,
 		TONE_MAP,
@@ -91,9 +97,14 @@ protected:
 
 	struct PerFrameConstants
 	{
-		DirectX::XMFLOAT4	EyePt;
+		DirectX::XMFLOAT4	EyePtGlossy;
 		DirectX::XMFLOAT4X4	ScreenToWorld;
 		DirectX::XMFLOAT2	Viewport;
+	};
+
+	struct SHConstants
+	{
+		DirectX::XMFLOAT4	CoeffSH[9];
 	};
 
 	bool createVB(const XUSG::CommandList& commandList, uint32_t numVert,
@@ -106,6 +117,7 @@ protected:
 	bool createDescriptorTables();
 
 	void render(const XUSG::CommandList& commandList, bool isGroundTruth, bool needClear);
+	void renderSH(const XUSG::CommandList& commandList, bool needClear);
 	void environment(const XUSG::CommandList& commandList);
 	void temporalAA(const XUSG::CommandList& commandList);
 
@@ -123,6 +135,7 @@ protected:
 	XUSG::PipelineLayout	m_pipelineLayouts[NUM_PIPELINE];
 	XUSG::Pipeline			m_pipelines[NUM_PIPELINE];
 
+	XUSG::DescriptorTable	m_cbvTable;
 	XUSG::DescriptorTable	m_srvTables[NUM_SRV_TABLE];
 	XUSG::DescriptorTable	m_uavTables[NUM_UAV_TABLE];
 	XUSG::DescriptorTable	m_samplerTable;

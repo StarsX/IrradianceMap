@@ -2,11 +2,8 @@
 // By Stars XU Tianchen
 //--------------------------------------------------------------------------------------
 
-float3 GetCubeTexcoord(uint3 index, RWTexture2DArray<float4> cubeMap)
+float3 GetCubeTexcoord(uint3 index, float3 dim)
 {
-	float3 dim;
-	cubeMap.GetDimensions(dim.x, dim.y, dim.z);
-
 	const float2 radii = dim.xy * 0.5;
 	float2 xy = index.xy - radii + 0.5;
 	xy.y = -xy.y;
@@ -30,4 +27,12 @@ float3 GetCubeTexcoord(uint3 index, RWTexture2DArray<float4> cubeMap)
 	default:
 		return pos;
 	}
+}
+
+float3 GetCubeTexcoord(uint3 index, RWTexture2DArray<float4> cubeMap)
+{
+	float3 dim;
+	cubeMap.GetDimensions(dim.x, dim.y, dim.z);
+
+	return GetCubeTexcoord(index, dim);
 }

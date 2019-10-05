@@ -2,6 +2,8 @@
 // By XU, Tianchen
 //--------------------------------------------------------------------------------------
 
+#define PI	3.141592654
+
 //--------------------------------------------------------------------------------------
 // Structs
 //--------------------------------------------------------------------------------------
@@ -23,17 +25,21 @@ struct PSOut
 //--------------------------------------------------------------------------------------
 // Constant buffer
 //--------------------------------------------------------------------------------------
-cbuffer cbPerFrame
+cbuffer cbPerFrame	: register (b0)
 {
 	float3 g_eyePt;
 	float g_glossy;
 };
 
+cbuffer cbSH		: register (b1)
+{
+	float3 g_coeffSH[9];
+};
+
 //--------------------------------------------------------------------------------------
 // Textures
 //--------------------------------------------------------------------------------------
-TextureCube<float3>	g_txRadiance	: register (t0);
-TextureCube<float3>	g_txIrradiance	: register (t1);
+TextureCube<float3>	g_txRadiance;
 
 //--------------------------------------------------------------------------------------
 // Samplers
@@ -54,6 +60,29 @@ min16float Fresnel(min16float viewAmt, min16float specRef, uint expLevel = 2)
 	return lerp(fresnel, 1.0, specRef);
 }
 
+//--------------------------------------------------------------------------------------
+// Spherical harmonics
+//--------------------------------------------------------------------------------------
+float3 EvaluateSHIrradiance(float3 norm)
+{
+	const float c1 = 0.42904276540489171563379376569857;    // 4 * A2.Y22 = 1/4 * sqrt(15.PI)
+	const float c2 = 0.51166335397324424423977581244463;    // 0.5 * A1.Y10 = 1/2 * sqrt(PI/3)
+	const float c3 = 0.24770795610037568833406429782001;    // A2.Y20 = 1/16 * sqrt(5.PI)
+	const float c4 = 0.88622692545275801364908374167057;    // A0.Y00 = 1/2 * sqrt(PI)
+
+	const float x = norm.x;
+	const float y = -norm.y;
+	const float z = norm.z;
+
+	const float3 irradiance = max(0.0,
+		(c1 * (x * x - y * y)) * g_coeffSH[8]												// c1.L22.(x²-y²)
+		+ (c3 * (3.0 * z * z - 1)) * g_coeffSH[6]											// c3.L20.(3.z² - 1)
+		+ c4 * g_coeffSH[0]																	// c4.L00 
+		+ 2.0 * c1 * (g_coeffSH[4] * x * y + g_coeffSH[7] * x * z + g_coeffSH[5] * y * z)	// 2.c1.(L2-2.xy + L21.xz + L2-1.yz)
+		+ 2.0 * c2 * (g_coeffSH[3] * x + g_coeffSH[1] * y + g_coeffSH[2] * z));				// 2.c2.(L11.x + L1-1.y + L10.z)
+
+	return irradiance / PI;
+}
 
 //--------------------------------------------------------------------------------------
 // Base geometry-buffer pass
@@ -63,8 +92,7 @@ PSOut main(PSIn input)
 	PSOut output;
 
 	const min16float3 norm = min16float3(normalize(input.Norm));
-	//float3 irradiance = g_txIrradiance.Sample(g_sampler, input.Norm);
-	float3 irradiance = g_txIrradiance.SampleLevel(g_sampler, input.Norm, 0.0);
+	float3 irradiance = EvaluateSHIrradiance(norm);//ComputeSHIrradiance(norm);
 
 	const min16float3 viewDir = min16float3(normalize(g_eyePt - input.WSPos));
 	const min16float3 lightDir = reflect(-viewDir, norm);
@@ -94,9 +122,6 @@ PSOut main(PSIn input)
 	radiance *= 0.04 * ambient.x + ambient.y;
 #endif
 
-	//irradiance *= 1.3;
-	//irradiance = pow(abs(irradiance), clamp(1.0 / irradiance.x, 1.0, 1.85));
-	//output.Color = min16float4(norm * 0.5 + 0.5, 1.0);
 	output.Color = min16float4(irradiance + radiance * g_glossy, 1.0);
 	output.Velocity = min16float4(velocity, 0.0.xx);
 
