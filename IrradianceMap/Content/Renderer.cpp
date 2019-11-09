@@ -465,7 +465,7 @@ bool Renderer::createDescriptorTables()
 		};
 		Util::DescriptorTable rtvTable;
 		rtvTable.SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-		X_RETURN(m_rtvTable, rtvTable.GetRtvTable(*m_descriptorTableCache), false);
+		m_framebuffer = rtvTable.GetFramebuffer(*m_descriptorTableCache, &m_depth.GetDSV());
 	}
 
 	// Create the sampler
@@ -481,8 +481,8 @@ bool Renderer::createDescriptorTables()
 
 void Renderer::render(const CommandList& commandList, RenderMode mode, bool needClear)
 {
-	// Set render target
-	commandList.OMSetRenderTargets(NUM_RENDER_TARGET, m_rtvTable, &m_depth.GetDSV());
+	// Set framebuffer
+	commandList.OMSetFramebuffer(m_framebuffer);
 
 	// Clear render target
 	const float clearColor[4] = { 0.2f, 0.2f, 0.7f, 0.0f };
@@ -520,7 +520,7 @@ void Renderer::render(const CommandList& commandList, RenderMode mode, bool need
 void Renderer::environment(const CommandList& commandList)
 {
 	// Set render target
-	commandList.OMSetRenderTargets(1, m_rtvTable.get(), &m_depth.GetDSV());
+	commandList.OMSetRenderTargets(1, &m_renderTargets[RT_COLOR].GetRTV(), &m_depth.GetDSV());
 
 	// Set descriptor tables
 	commandList.SetGraphicsPipelineLayout(m_pipelineLayouts[ENVIRONMENT]);
