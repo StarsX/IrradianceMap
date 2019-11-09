@@ -177,8 +177,6 @@ void Renderer::UpdateFrame(uint32_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewP
 		XMStoreFloat4x4(&m_cbPerFrame.ScreenToWorld, XMMatrixTranspose(projToWorld));
 		XMStoreFloat4(&m_cbPerFrame.EyePtGlossy, eyePt);
 		m_cbPerFrame.EyePtGlossy.w = glossy;
-		m_cbPerFrame.Viewport.x = static_cast<float>(m_viewport.x);
-		m_cbPerFrame.Viewport.y = static_cast<float>(m_viewport.y);
 	}
 
 	m_frameParity = !m_frameParity;

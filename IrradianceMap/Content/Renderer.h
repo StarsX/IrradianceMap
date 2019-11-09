@@ -104,7 +104,6 @@ protected:
 	{
 		DirectX::XMFLOAT4	EyePtGlossy;
 		DirectX::XMFLOAT4X4	ScreenToWorld;
-		DirectX::XMFLOAT2	Viewport;
 	};
 
 	struct SHConstants

@@ -193,7 +193,7 @@
     <None Include="XUSG\Core\XUSGSampler.inl">
       <Filter>XUSG\Core\Source Files\Inc</Filter>
     </None>
-    <None Include="Content\Shaders\CSCubeMap.hlsli">
+    <None Include="Content\Shaders\CubeMap.hlsli">
       <Filter>Shaders</Filter>
     </None>
   </ItemGroup>
@@ -226,6 +226,9 @@
       <Filter>Shaders</Filter>
     </FxCompile>
     <FxCompile Include="Content\Shaders\PSBasePassSH.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Content\Shaders\PSCosineUp.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>

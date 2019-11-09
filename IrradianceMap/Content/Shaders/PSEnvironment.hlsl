@@ -8,13 +8,21 @@
 #define ENVCUBE_RADIUS	(768.0 / 1.414)
 
 //--------------------------------------------------------------------------------------
+// Structure
+//--------------------------------------------------------------------------------------
+struct PSIn
+{
+	float4 Pos : SV_POSITION;
+	float2 Tex : TEXCOORD;
+};
+
+//--------------------------------------------------------------------------------------
 // Constant buffer
 //--------------------------------------------------------------------------------------
 cbuffer cbPerFrame
 {
 	float3 g_eyePt;
 	matrix g_screenToWorld;
-	float2 g_viewport;
 };
 
 //--------------------------------------------------------------------------------------
@@ -35,9 +43,9 @@ SamplerState g_smpLinear;
 //--------------------------------------------------------------------------------------
 // Pixel shader that maps the cubic sky texture into screen space
 //--------------------------------------------------------------------------------------
-min16float4 main(float4 Pos : SV_POSITION) : SV_TARGET
+min16float4 main(PSIn input) : SV_TARGET
 {
-	float2 xy = Pos.xy / g_viewport * 2.0 - 1.0;
+	float2 xy = input.Tex * 2.0 - 1.0;
 	xy.y = -xy.y;
 
 	// Calculate cube mapping

@@ -8,6 +8,15 @@
 #define MAX_LEVEL_COUNT	11
 
 //--------------------------------------------------------------------------------------
+// Structure
+//--------------------------------------------------------------------------------------
+struct PSIn
+{
+	float4 Pos : SV_POSITION;
+	float2 Tex : TEXCOORD;
+};
+
+//--------------------------------------------------------------------------------------
 // Constant buffer
 //--------------------------------------------------------------------------------------
 cbuffer cb
@@ -15,29 +24,26 @@ cbuffer cb
 	float	g_mapSize;
 	uint	g_numLevels;
 	uint	g_level;
+	uint	g_slice;
 };
 
 //--------------------------------------------------------------------------------------
 // Textures
 //--------------------------------------------------------------------------------------
-TextureCube<float3>			g_txSource;
-TextureCube<float3>			g_txCoarser;
-RWTexture2DArray<float3>	g_rwDest;
+TextureCube<float3>	g_txCoarser;
 
 //--------------------------------------------------------------------------------------
 // Texture samplers
 //--------------------------------------------------------------------------------------
-SamplerState	g_smpLinear;
+SamplerState		g_smpLinear;
 
 //--------------------------------------------------------------------------------------
 // Compute shader
 //--------------------------------------------------------------------------------------
-[numthreads(8, 8, 1)]
-void main(uint3 DTid : SV_DispatchThreadID)
+float4 main(PSIn input) : SV_TARGET
 {
 	// Fetch the color of the current level and the resolved color at the coarser level
-	const float3 tex = GetCubeTexcoord(DTid, g_rwDest);
-	const float3 src = g_txSource.SampleLevel(g_smpLinear, tex, 0.0);
+	const float3 tex = GetCubeTexcoord(g_slice, input.Tex);
 	const float3 coarser = g_txCoarser.SampleLevel(g_smpLinear, tex, 0.0);
 
 	// Cosine-approximating Haar coefficients (weights of box filters)
@@ -70,5 +76,5 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	weight = wsum > 0.0 ? weight / wsum : 1.0;
 #endif
 
-	g_rwDest[DTid] = lerp(coarser, src, weight);
+	return float4(coarser, 1.0 - weight);
 }

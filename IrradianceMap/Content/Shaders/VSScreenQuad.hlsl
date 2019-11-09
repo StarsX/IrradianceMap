@@ -3,11 +3,23 @@
 //--------------------------------------------------------------------------------------
 
 //--------------------------------------------------------------------------------------
+// Structure
+//--------------------------------------------------------------------------------------
+struct VSOut
+{
+	float4 Pos : SV_POSITION;
+	float2 Tex : TEXCOORD;
+};
+
+//--------------------------------------------------------------------------------------
 // Vertex shader used for screen-space post-processing
 //--------------------------------------------------------------------------------------
-float4 main(uint vid : SV_VERTEXID) : SV_POSITION
+VSOut main(uint vid : SV_VertexID)
 {
-	float2 tex = float2((vid << 1) & 2, vid & 2);
+	VSOut output;
 
-	return float4(tex * float2(2.0, -2.0) + float2(-1.0, 1.0), 1.0.xx);
+	output.Tex = float2((vid << 1) & 2, vid & 2);
+	output.Pos = float4(output.Tex * float2(2.0, -2.0) + float2(-1.0, 1.0), 1.0.xx);
+
+	return output;
 }

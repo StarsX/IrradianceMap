@@ -34,10 +34,20 @@ float3 GetCubeTexcoord(uint3 index, float3 dim)
 	return GetCubeTexcoord(index.z, pos);
 }
 
-float3 GetCubeTexcoord(uint3 index, RWTexture2DArray<float4> cubeMap)
+float3 GetCubeTexcoord(uint3 index, RWTexture2DArray<float3> cubeMap)
 {
 	float3 dim;
 	cubeMap.GetDimensions(dim.x, dim.y, dim.z);
 
 	return GetCubeTexcoord(index, dim);
+}
+
+float3 GetCubeTexcoord(uint slice, float2 tex)
+{
+	float2 xy = tex * 2.0 - 1.0;
+	xy.y = -xy.y;
+
+	const float3 pos = { xy, 1.0 };
+
+	return GetCubeTexcoord(slice, pos);
 }

@@ -33,7 +33,8 @@ protected:
 	{
 		RADIANCE,
 		RESAMPLE,
-		UP_SAMPLE,
+		UP_SAMPLE_C,
+		UP_SAMPLE_G,
 
 		NUM_PIPELINE
 	};
@@ -42,6 +43,7 @@ protected:
 	{
 		TABLE_DOWN_SAMPLE,
 		TABLE_UP_SAMPLE,
+		TABLE_RESAMPLE,
 
 		NUM_UAV_SRV
 	};
@@ -52,10 +54,12 @@ protected:
 
 	void generateRadiance(const XUSG::CommandList& commandList);
 	void process(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
+	void processHybrid(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
 
 	XUSG::Device m_device;
 
 	XUSG::ShaderPool				m_shaderPool;
+	XUSG::Graphics::PipelineCache	m_graphicsPipelineCache;
 	XUSG::Compute::PipelineCache	m_computePipelineCache;
 	XUSG::PipelineLayoutCache		m_pipelineLayoutCache;
 	std::shared_ptr<XUSG::DescriptorTableCache> m_descriptorTableCache;
@@ -70,7 +74,8 @@ protected:
 
 	std::shared_ptr<XUSG::ResourceBase> m_groundTruth;
 	std::vector<std::shared_ptr<XUSG::ResourceBase>> m_sources;
-	XUSG::Texture2D			m_filtered[NUM_UAV_SRV];
+	XUSG::Texture2D			m_radiance;
+	XUSG::RenderTarget		m_irradiance;
 
 	XUSG::ConstantBuffer	m_cbCoeffSH;
 

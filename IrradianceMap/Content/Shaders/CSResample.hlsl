@@ -2,13 +2,13 @@
 // By Stars XU Tianchen
 //--------------------------------------------------------------------------------------
 
-#include "CSCubeMap.hlsli"
+#include "CubeMap.hlsli"
 
 //--------------------------------------------------------------------------------------
 // Textures
 //--------------------------------------------------------------------------------------
-TextureCube					g_txSource;
-RWTexture2DArray<float4>	g_rwDest;
+TextureCube<float3>			g_txSource;
+RWTexture2DArray<float3>	g_rwDest;
 
 //--------------------------------------------------------------------------------------
 // Texture samplers
@@ -22,7 +22,7 @@ SamplerState	g_smpLinear;
 void main(uint3 DTid : SV_DispatchThreadID)
 {
 	const float3 tex = GetCubeTexcoord(DTid, g_rwDest);
-	const float4 result = g_txSource.SampleLevel(g_smpLinear, tex, 0.0);
+	const float3 result = g_txSource.SampleLevel(g_smpLinear, tex, 0.0);
 
 	g_rwDest[DTid] = result;
 }
