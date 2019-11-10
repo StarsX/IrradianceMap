@@ -40,7 +40,8 @@ public:
 protected:
 	enum PipelineIndex : uint8_t
 	{
-		RADIANCE,
+		RADIANCE_G,
+		RADIANCE_C,
 		RESAMPLE_G,
 		RESAMPLE_C,
 		UP_SAMPLE_G,
@@ -62,7 +63,8 @@ protected:
 	bool createPipelines(XUSG::Format rtFormat, bool typedUAV = true);
 	bool createDescriptorTables();
 
-	void generateRadiance(const XUSG::CommandList& commandList);
+	void generateRadianceGraphics(const XUSG::CommandList& commandList);
+	void generateRadianceCompute(const XUSG::CommandList& commandList);
 	void generateMipsGraphics(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
 	void generateMipsCompute(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
 	void upsampleGraphics(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
@@ -86,7 +88,7 @@ protected:
 
 	std::shared_ptr<XUSG::ResourceBase> m_groundTruth;
 	std::vector<std::shared_ptr<XUSG::ResourceBase>> m_sources;
-	XUSG::Texture2D			m_radiance;
+	XUSG::RenderTarget		m_radiance;
 	XUSG::RenderTarget		m_irradiance;
 
 	XUSG::ConstantBuffer	m_cbCoeffSH;

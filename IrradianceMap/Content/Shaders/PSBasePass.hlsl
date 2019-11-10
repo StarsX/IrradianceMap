@@ -36,7 +36,7 @@ TextureCube<float3>	g_txRadiance	: register (t0);
 TextureCube<float3>	g_txIrradiance	: register (t1);
 
 //--------------------------------------------------------------------------------------
-// Samplers
+// Sampler
 //--------------------------------------------------------------------------------------
 SamplerState g_sampler;
 

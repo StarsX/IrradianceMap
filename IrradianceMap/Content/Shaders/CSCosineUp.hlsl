@@ -13,7 +13,7 @@ TextureCube<float3>			g_txCoarser;
 RWTexture2DArray<float3>	g_rwDest;
 
 //--------------------------------------------------------------------------------------
-// Texture samplers
+// Texture sampler
 //--------------------------------------------------------------------------------------
 SamplerState	g_smpLinear;
 

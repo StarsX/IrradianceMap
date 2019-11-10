@@ -34,7 +34,7 @@ Texture2D			g_txHistory	: register (t1);
 Texture2D<float2>	g_velocity	: register (t2);
 
 //--------------------------------------------------------------------------------------
-// Samplers
+// Sampler
 //--------------------------------------------------------------------------------------
 SamplerState g_sampler;
 

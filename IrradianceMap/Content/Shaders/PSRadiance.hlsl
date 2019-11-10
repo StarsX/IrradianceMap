@@ -5,18 +5,27 @@
 #include "CubeMap.hlsli"
 
 //--------------------------------------------------------------------------------------
+// Structure
+//--------------------------------------------------------------------------------------
+struct PSIn
+{
+	float4 Pos : SV_POSITION;
+	float2 Tex : TEXCOORD;
+};
+
+//--------------------------------------------------------------------------------------
 // Constant buffer
 //--------------------------------------------------------------------------------------
 cbuffer cb
 {
-	float g_blend;
+	float	g_blend;
+	uint	g_slice;
 };
 
 //--------------------------------------------------------------------------------------
-// Textures
+// Texture
 //--------------------------------------------------------------------------------------
-TextureCube<float3>			g_txSources[2];
-RWTexture2DArray<float3>	g_rwDest;
+TextureCube<float3>	g_txSources[2];
 
 //--------------------------------------------------------------------------------------
 // Texture sampler
@@ -26,12 +35,11 @@ SamplerState	g_smpLinear;
 //--------------------------------------------------------------------------------------
 // Compute shader
 //--------------------------------------------------------------------------------------
-[numthreads(8, 8, 1)]
-void main(uint3 DTid : SV_DispatchThreadID)
+float3 main(PSIn input) : SV_TARGET
 {
-	const float3 tex = GetCubeTexcoord(DTid, g_rwDest);
+	const float3 tex = GetCubeTexcoord(g_slice, input.Tex);
 	const float3 source1 = g_txSources[0].SampleLevel(g_smpLinear, tex, 0.0);
 	const float3 source2 = g_txSources[1].SampleLevel(g_smpLinear, tex, 0.0);
 
-	g_rwDest[DTid] = lerp(source1, source2, g_blend);
+	return lerp(source1, source2, g_blend);
 }
