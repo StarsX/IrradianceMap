@@ -72,6 +72,7 @@ private:
 	uint64_t	m_fenceValues[FrameCount];
 
 	// Application state
+	LightProbe::PipelineType m_pipelineType;
 	float		m_glossy;
 	bool		m_showFPS;
 	bool		m_isPaused;

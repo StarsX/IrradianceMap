@@ -3,7 +3,6 @@
 //--------------------------------------------------------------------------------------
 
 #include "CubeMap.hlsli"
-#include "MipCosine.hlsli"
 
 //--------------------------------------------------------------------------------------
 // Structure
@@ -15,9 +14,17 @@ struct PSIn
 };
 
 //--------------------------------------------------------------------------------------
+// Constant buffer
+//--------------------------------------------------------------------------------------
+cbuffer cb
+{
+	uint g_slice;
+};
+
+//--------------------------------------------------------------------------------------
 // Textures
 //--------------------------------------------------------------------------------------
-TextureCube<float3>	g_txCoarser;
+TextureCube<float3>	g_txSource;
 
 //--------------------------------------------------------------------------------------
 // Texture samplers
@@ -27,14 +34,9 @@ SamplerState		g_smpLinear;
 //--------------------------------------------------------------------------------------
 // Pixel shader
 //--------------------------------------------------------------------------------------
-float4 main(PSIn input) : SV_TARGET
+float3 main(PSIn input) : SV_TARGET
 {
-	// Fetch the color of the current level and the resolved color at the coarser level
 	const float3 tex = GetCubeTexcoord(g_slice, input.Tex);
-	const float3 coarser = g_txCoarser.SampleLevel(g_smpLinear, tex, 0.0);
 
-	// Cosine-approximating Haar coefficients (weights of box filters)
-	const float weight = MipCosineBlendWeight();
-
-	return float4(coarser, 1.0 - weight);
+	return g_txSource.SampleLevel(g_smpLinear, tex, 0.0);
 }

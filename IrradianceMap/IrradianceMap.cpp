@@ -23,6 +23,7 @@ Renderer::RenderMode g_renderMode = Renderer::MIP_APPROX;
 IrradianceMap::IrradianceMap(uint32_t width, uint32_t height, std::wstring name) :
 	DXFramework(width, height, name),
 	m_frameIndex(0),
+	m_pipelineType(LightProbe::HYBRID),
 	m_glossy(1.0f),
 	m_showFPS(true),
 	m_isPaused(true),
@@ -274,6 +275,9 @@ void IrradianceMap::OnKeyUp(uint8_t key)
 	case 'G':
 		m_glossy = 1.0f - m_glossy;
 		break;
+	case 'P':
+		m_pipelineType = static_cast<LightProbe::PipelineType>((m_pipelineType + 1) % LightProbe::NUM_PIPE_TYPE);
+		break;
 	}
 }
 
@@ -393,7 +397,7 @@ void IrradianceMap::PopulateCommandList()
 
 	// Record commands.
 	const auto dstState = ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE;
-	m_lightProbe->Process(m_commandList, dstState);	// V-cycle
+	m_lightProbe->Process(m_commandList, dstState, m_pipelineType);	// V-cycle
 
 	ResourceBarrier barriers[11];
 	auto numBarriers = 0u;
@@ -471,6 +475,21 @@ double IrradianceMap::CalculateFrameStats(float* pTimeStep)
 		windowText << L"    fps: ";
 		if (m_showFPS) windowText << setprecision(2) << fixed << fps;
 		else windowText << L"[F1]";
+
+		windowText << L"    [P] ";
+		switch (m_pipelineType)
+		{
+		case LightProbe::GRAPHICS:
+			windowText << L"Pure graphics pipelines";
+			break;
+		case LightProbe::COMPUTE:
+			windowText << L"Pure compute pipelines";
+			break;
+		default:
+			windowText << L"Hybrid pipelines (mip-gen by compute and up-sampling by graphics)";
+		}
+
+		windowText << L"    [G] Glossy " << m_glossy;
 		SetCustomWindowText(windowText.str().c_str());
 	}
 

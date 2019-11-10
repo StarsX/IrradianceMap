@@ -196,6 +196,9 @@
     <None Include="Content\Shaders\CubeMap.hlsli">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="Content\Shaders\MipCosine.hlsli">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Content\Shaders\CSResample.hlsl">
@@ -229,6 +232,9 @@
       <Filter>Shaders</Filter>
     </FxCompile>
     <FxCompile Include="Content\Shaders\PSCosineUp.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Content\Shaders\PSResample.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>

@@ -10,6 +10,15 @@
 class LightProbe
 {
 public:
+	enum PipelineType
+	{
+		HYBRID,
+		GRAPHICS,
+		COMPUTE,
+
+		NUM_PIPE_TYPE
+	};
+
 	LightProbe(const XUSG::Device &device);
 	virtual ~LightProbe();
 
@@ -19,7 +28,7 @@ public:
 		uint32_t numFiles);
 
 	void UpdateFrame(double time);
-	void Process(const XUSG::CommandList &commandList, XUSG::ResourceState dstState);
+	void Process(const XUSG::CommandList &commandList, XUSG::ResourceState dstState, PipelineType pipelineType);
 
 	XUSG::ResourceBase* GetIrradianceGT(const XUSG::CommandList& commandList,
 		const wchar_t* fileName = nullptr, std::vector<XUSG::Resource>* pUploaders = nullptr);
@@ -32,9 +41,10 @@ protected:
 	enum PipelineIndex : uint8_t
 	{
 		RADIANCE,
-		RESAMPLE,
-		UP_SAMPLE_C,
+		RESAMPLE_G,
+		RESAMPLE_C,
 		UP_SAMPLE_G,
+		UP_SAMPLE_C,
 
 		NUM_PIPELINE
 	};
@@ -49,13 +59,15 @@ protected:
 	};
 
 	bool createPipelineLayouts();
-	bool createPipelines();
+	bool createPipelines(XUSG::Format rtFormat, bool typedUAV = true);
 	bool createDescriptorTables();
 
 	void generateRadiance(const XUSG::CommandList& commandList);
-	void process(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
-	void processHybrid(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
-
+	void generateMipsGraphics(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
+	void generateMipsCompute(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
+	void upsampleGraphics(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
+	void processLegacy(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
+	
 	XUSG::Device m_device;
 
 	XUSG::ShaderPool				m_shaderPool;
