@@ -10,3 +10,5 @@ Hot keys:
 [F1] show/hide FPS
 
 [Space] pause/play animation
+
+[P] pipeline type switch
