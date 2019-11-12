@@ -25,7 +25,7 @@ public:
 	bool Init(const XUSG::CommandList &commandList, uint32_t width, uint32_t height,
 		const std::shared_ptr<XUSG::DescriptorTableCache>& descriptorTableCache,
 		std::vector<XUSG::Resource> &uploaders, const std::wstring pFileNames[],
-		uint32_t numFiles);
+		uint32_t numFiles, bool typedUAV);
 
 	void UpdateFrame(double time);
 	void Process(const XUSG::CommandList &commandList, XUSG::ResourceState dstState, PipelineType pipelineType);
@@ -46,12 +46,15 @@ protected:
 		RESAMPLE_C,
 		UP_SAMPLE_G,
 		UP_SAMPLE_C,
+		FINAL_G,
+		FINAL_C,
 
 		NUM_PIPELINE
 	};
 
 	enum UavSrvTableIndex : uint8_t
 	{
+		TABLE_RADIANCE,
 		TABLE_DOWN_SAMPLE,
 		TABLE_UP_SAMPLE,
 		TABLE_RESAMPLE,
@@ -60,7 +63,7 @@ protected:
 	};
 
 	bool createPipelineLayouts();
-	bool createPipelines(XUSG::Format rtFormat, bool typedUAV = true);
+	bool createPipelines(XUSG::Format rtFormat, bool typedUAV);
 	bool createDescriptorTables();
 
 	void generateRadianceGraphics(const XUSG::CommandList& commandList);
@@ -68,7 +71,7 @@ protected:
 	void generateMipsGraphics(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
 	void generateMipsCompute(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
 	void upsampleGraphics(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
-	void processLegacy(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
+	void upsampleCompute(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
 	
 	XUSG::Device m_device;
 
@@ -81,9 +84,8 @@ protected:
 	XUSG::PipelineLayout	m_pipelineLayouts[NUM_PIPELINE];
 	XUSG::Pipeline			m_pipelines[NUM_PIPELINE];
 
-	std::vector<XUSG::DescriptorTable> m_uavSrvTables[NUM_UAV_SRV];
-	std::vector<XUSG::DescriptorTable> m_srvTables;
-	XUSG::DescriptorTable	m_uavTable;
+	std::vector<XUSG::DescriptorTable> m_srvTables[NUM_UAV_SRV];
+	std::vector<XUSG::DescriptorTable> m_uavTables[NUM_UAV_SRV];
 	XUSG::DescriptorTable	m_samplerTable;
 
 	std::shared_ptr<XUSG::ResourceBase> m_groundTruth;

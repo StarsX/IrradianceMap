@@ -65,6 +65,8 @@ private:
 	XMFLOAT3	m_focusPt;
 	XMFLOAT3	m_eyePt;
 
+	bool		m_typedUAV;
+
 	// Synchronization objects.
 	uint32_t	m_frameIndex;
 	HANDLE		m_fenceEvent;

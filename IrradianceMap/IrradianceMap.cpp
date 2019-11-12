@@ -22,6 +22,7 @@ Renderer::RenderMode g_renderMode = Renderer::MIP_APPROX;
 
 IrradianceMap::IrradianceMap(uint32_t width, uint32_t height, std::wstring name) :
 	DXFramework(width, height, name),
+	m_typedUAV(false),
 	m_frameIndex(0),
 	m_pipelineType(LightProbe::HYBRID),
 	m_glossy(1.0f),
@@ -100,6 +101,22 @@ void IrradianceMap::LoadPipeline()
 		m_title += dxgiAdapterDesc.VendorId == 0x1414 && dxgiAdapterDesc.DeviceId == 0x8c ? L" (WARP)" : L" (Software)";
 	ThrowIfFailed(hr);
 
+	D3D12_FEATURE_DATA_D3D12_OPTIONS featureData = {};
+	hr = m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &featureData, sizeof(featureData));
+	if (SUCCEEDED(hr))
+	{
+		// TypedUAVLoadAdditionalFormats contains a Boolean that tells you whether the feature is supported or not
+		if (featureData.TypedUAVLoadAdditionalFormats)
+		{
+			// Can assume “all-or-nothing” subset is supported (e.g. R32G32B32A32_FLOAT)
+			// Cannot assume other formats are supported, so we check:
+			D3D12_FEATURE_DATA_FORMAT_SUPPORT formatSupport = { DXGI_FORMAT_B8G8R8A8_UNORM, D3D12_FORMAT_SUPPORT1_NONE, D3D12_FORMAT_SUPPORT2_NONE };
+			hr = m_device->CheckFeatureSupport(D3D12_FEATURE_FORMAT_SUPPORT, &formatSupport, sizeof(formatSupport));
+			if (SUCCEEDED(hr) && (formatSupport.Support2 & D3D12_FORMAT_SUPPORT2_UAV_TYPED_LOAD))
+				m_typedUAV = true;
+		}
+	}
+
 	// Create the command queue.
 	N_RETURN(m_device->GetCommandQueue(m_commandQueue, CommandListType::DIRECT, CommandQueueFlags::NONE), ThrowIfFailed(E_FAIL));
 
@@ -152,8 +169,8 @@ void IrradianceMap::LoadAssets()
 
 	shared_ptr<ResourceBase> source;
 	vector<Resource> uploaders(0);
-	if (!m_lightProbe->Init(m_commandList, m_width, m_height, m_descriptorTableCache,
-		uploaders, m_envFileNames.data(), static_cast<uint32_t>(m_envFileNames.size())))
+	if (!m_lightProbe->Init(m_commandList, m_width, m_height, m_descriptorTableCache, uploaders,
+		m_envFileNames.data(), static_cast<uint32_t>(m_envFileNames.size()), m_typedUAV))
 		ThrowIfFailed(E_FAIL);
 
 	m_renderer = make_unique<Renderer>(m_device);
@@ -276,7 +293,8 @@ void IrradianceMap::OnKeyUp(uint8_t key)
 		m_glossy = 1.0f - m_glossy;
 		break;
 	case 'P':
-		m_pipelineType = static_cast<LightProbe::PipelineType>((m_pipelineType + 1) % LightProbe::NUM_PIPE_TYPE);
+		const auto inc = m_pipelineType == LightProbe::COMPUTE - 1 && !m_typedUAV ? 2 : 1;
+		m_pipelineType = static_cast<LightProbe::PipelineType>((m_pipelineType + inc) % LightProbe::NUM_PIPE_TYPE);
 		break;
 	}
 }
