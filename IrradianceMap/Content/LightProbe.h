@@ -55,8 +55,6 @@ protected:
 	enum UavSrvTableIndex : uint8_t
 	{
 		TABLE_RADIANCE,
-		TABLE_DOWN_SAMPLE,
-		TABLE_UP_SAMPLE,
 		TABLE_RESAMPLE,
 
 		NUM_UAV_SRV
@@ -66,12 +64,14 @@ protected:
 	bool createPipelines(XUSG::Format rtFormat, bool typedUAV);
 	bool createDescriptorTables();
 
+	uint32_t generateMipsGraphics(const XUSG::CommandList& commandList, XUSG::ResourceBarrier* pBarriers);
+	uint32_t generateMipsCompute(const XUSG::CommandList& commandList, XUSG::ResourceBarrier* pBarriers,
+		XUSG::ResourceState addState = XUSG::ResourceState::COMMON);
+
+	void upsampleGraphics(const XUSG::CommandList& commandList, XUSG::ResourceBarrier* pBarriers, uint32_t numBarriers);
+	void upsampleCompute(const XUSG::CommandList& commandList, XUSG::ResourceBarrier* pBarriers, uint32_t numBarriers);
 	void generateRadianceGraphics(const XUSG::CommandList& commandList);
 	void generateRadianceCompute(const XUSG::CommandList& commandList);
-	void generateMipsGraphics(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
-	void generateMipsCompute(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
-	void upsampleGraphics(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
-	void upsampleCompute(const XUSG::CommandList& commandList, XUSG::ResourceState dstState);
 	
 	XUSG::Device m_device;
 

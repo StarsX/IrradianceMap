@@ -62,7 +62,9 @@ bool LightProbe::Init(const CommandList& commandList, uint32_t width, uint32_t h
 		ResourceState::COMMON, nullptr, true, L"Radiance");
 	m_irradiance.Create(m_device, texWidth, texHeight, format, 6,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, m_numMips, 1,
-		ResourceState::COMMON, nullptr, true, L"Irradiance");
+		ResourceState::NON_PIXEL_SHADER_RESOURCE |
+		ResourceState::PIXEL_SHADER_RESOURCE,
+		nullptr, true, L"Irradiance");
 
 	N_RETURN(createPipelineLayouts(), false);
 	N_RETURN(createPipelines(format, typedUAV), false);
@@ -86,25 +88,31 @@ void LightProbe::Process(const CommandList& commandList, ResourceState dstState,
 	};
 	commandList.SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
 
+	ResourceBarrier barriers[12];
+	uint32_t numBarriers;
+
 	switch (pipelineType)
 	{
 	case GRAPHICS:
 		generateRadianceGraphics(commandList);
-		generateMipsGraphics(commandList, dstState);
-		upsampleGraphics(commandList, dstState);
+		numBarriers = generateMipsGraphics(commandList, barriers);
+		upsampleGraphics(commandList, barriers, numBarriers);
 		break;
 	case COMPUTE:
 		if (m_pipelines[UP_SAMPLE_C])
 		{
 			generateRadianceCompute(commandList);
-			generateMipsCompute(commandList, dstState);
-			upsampleCompute(commandList, dstState);
+			numBarriers = generateMipsCompute(commandList, barriers);
+			upsampleCompute(commandList, barriers, numBarriers);
 			break;
 		}
 	default:
 		generateRadianceCompute(commandList);
-		generateMipsCompute(commandList, dstState);
-		upsampleGraphics(commandList, dstState);
+		numBarriers = generateMipsCompute(commandList, barriers, ResourceState::PIXEL_SHADER_RESOURCE) - 6;
+		for (auto i = 0ui8; i < 6; ++i)
+			numBarriers = m_irradiance.SetBarrier(barriers, m_numMips - 1,
+				ResourceState::UNORDERED_ACCESS, numBarriers, i);
+		upsampleGraphics(commandList, barriers, numBarriers - 6);
 	}
 }
 
@@ -437,6 +445,94 @@ bool LightProbe::createDescriptorTables()
 	return true;
 }
 
+uint32_t LightProbe::generateMipsGraphics(const CommandList& commandList, ResourceBarrier* pBarriers)
+{
+	const auto numBarriers = m_radiance.SetBarrier(pBarriers, ResourceState::PIXEL_SHADER_RESOURCE);
+	return m_irradiance.GenerateMips(commandList, pBarriers,
+		ResourceState::PIXEL_SHADER_RESOURCE, m_pipelineLayouts[RESAMPLE_G],
+		m_pipelines[RESAMPLE_G], &m_srvTables[TABLE_RESAMPLE][0],
+		1, m_samplerTable, 0, numBarriers);
+}
+
+uint32_t LightProbe::generateMipsCompute(const CommandList& commandList, ResourceBarrier* pBarriers,
+	ResourceState addState)
+{
+	const auto numBarriers = m_radiance.SetBarrier(pBarriers, ResourceState::NON_PIXEL_SHADER_RESOURCE | addState);
+	return m_irradiance.Texture2D::GenerateMips(commandList, pBarriers, 8, 8, 1,
+		ResourceState::NON_PIXEL_SHADER_RESOURCE, m_pipelineLayouts[RESAMPLE_C],
+		m_pipelines[RESAMPLE_C], &m_uavTables[TABLE_RESAMPLE][1], 1, m_samplerTable,
+		0, numBarriers, &m_srvTables[TABLE_RESAMPLE][0], 2);
+}
+
+void LightProbe::upsampleGraphics(const CommandList& commandList, ResourceBarrier* pBarriers, uint32_t numBarriers)
+{
+	// Up sampling
+	commandList.SetGraphicsPipelineLayout(m_pipelineLayouts[UP_SAMPLE_G]);
+	commandList.SetPipelineState(m_pipelines[UP_SAMPLE_G]);
+	commandList.SetGraphicsDescriptorTable(0, m_samplerTable);
+
+	struct CosGConstants
+	{
+		CosConstants CosConsts;
+		uint32_t Slice;
+	} cb = { m_mapSize, m_numMips };
+	commandList.SetGraphics32BitConstants(2, SizeOfInUint32(cb.CosConsts.Imm), &cb);
+
+	const uint8_t numPasses = m_numMips - 1;
+	for (auto i = 0ui8; i + 1 < numPasses; ++i)
+	{
+		const auto c = numPasses - i;
+		cb.CosConsts.Level = c - 1;
+		commandList.SetGraphics32BitConstants(2, 2, &cb.CosConsts.Level, SizeOfInUint32(cb.CosConsts.Imm));
+		numBarriers = m_irradiance.Blit(commandList, pBarriers, cb.CosConsts.Level, c,
+			ResourceState::PIXEL_SHADER_RESOURCE, m_srvTables[TABLE_RESAMPLE][c],
+			1, numBarriers, 0, 0, SizeOfInUint32(cb.CosConsts));
+	}
+
+	// Final pass
+	cb.CosConsts.Level = 0;
+	commandList.SetGraphicsPipelineLayout(m_pipelineLayouts[FINAL_G]);
+	commandList.SetPipelineState(m_pipelines[FINAL_G]);
+	commandList.SetGraphicsDescriptorTable(0, m_samplerTable);
+	commandList.SetGraphics32BitConstants(2, SizeOfInUint32(cb), &cb);
+	numBarriers = m_irradiance.Blit(commandList, pBarriers, 0, 1,
+		ResourceState::PIXEL_SHADER_RESOURCE, m_srvTables[TABLE_RESAMPLE][0],
+		1, numBarriers, 0, 0, SizeOfInUint32(cb.CosConsts));
+}
+
+void LightProbe::upsampleCompute(const CommandList& commandList, ResourceBarrier* pBarriers, uint32_t numBarriers)
+{
+	// Up sampling
+	commandList.SetComputePipelineLayout(m_pipelineLayouts[UP_SAMPLE_C]);
+	commandList.SetPipelineState(m_pipelines[UP_SAMPLE_C]);
+	commandList.SetComputeDescriptorTable(0, m_samplerTable);
+
+	CosConstants cb = { m_mapSize, m_numMips };
+	commandList.SetCompute32BitConstants(3, SizeOfInUint32(cb.Imm), &cb);
+
+	const uint8_t numPasses = m_numMips - 1;
+	for (auto i = 0ui8; i + 1 < numPasses; ++i)
+	{
+		const auto c = numPasses - i;
+		const auto level = c - 1;
+		commandList.SetCompute32BitConstant(3, level, SizeOfInUint32(cb.Imm));
+		numBarriers = m_irradiance.Texture2D::Blit(commandList, pBarriers,
+			8, 8, 1, level, c, ResourceState::NON_PIXEL_SHADER_RESOURCE,
+			m_uavTables[TABLE_RESAMPLE][level], 1, numBarriers,
+			m_srvTables[TABLE_RESAMPLE][c], 2);
+	}
+
+	// Final pass
+	commandList.SetComputePipelineLayout(m_pipelineLayouts[FINAL_C]);
+	commandList.SetPipelineState(m_pipelines[FINAL_C]);
+	commandList.SetComputeDescriptorTable(0, m_samplerTable);
+	commandList.SetCompute32BitConstants(3, SizeOfInUint32(cb), &cb);
+	numBarriers = m_irradiance.Texture2D::Blit(commandList, pBarriers,
+		8, 8, 1, 0, 1, ResourceState::NON_PIXEL_SHADER_RESOURCE,
+		m_uavTables[TABLE_RESAMPLE][0], 1, numBarriers,
+		m_srvTables[TABLE_RESAMPLE][1], 2);
+}
+
 void LightProbe::generateRadianceGraphics(const CommandList& commandList)
 {
 	static const auto period = 3.0;
@@ -450,12 +546,12 @@ void LightProbe::generateRadianceGraphics(const CommandList& commandList)
 	blend = numSources > 1 ? blend - i : 0.0f;
 	i %= numSources;
 
+	const float cb[2] = { blend };
 	commandList.SetGraphicsPipelineLayout(m_pipelineLayouts[RADIANCE_G]);
-	commandList.SetPipelineState(m_pipelines[RADIANCE_G]);
-	commandList.SetGraphicsDescriptorTable(0, m_samplerTable);
-	commandList.SetGraphics32BitConstant(2, reinterpret_cast<const uint32_t&>(blend));
+	commandList.SetGraphics32BitConstants(2, SizeOfInUint32(cb), &cb);
 
-	m_radiance.Blit(commandList, m_srvTables[TABLE_RADIANCE][i], 1, 0, 0, 0, nullptr, 1, nullptr, 1);
+	m_radiance.Blit(commandList, m_srvTables[TABLE_RADIANCE][i], 1, 0, 0, 0,
+		m_samplerTable, 0, m_pipelines[RADIANCE_G], SizeOfInUint32(blend));
 }
 
 void LightProbe::generateRadianceCompute(const CommandList& commandList)
@@ -472,100 +568,8 @@ void LightProbe::generateRadianceCompute(const CommandList& commandList)
 	i %= numSources;
 
 	commandList.SetComputePipelineLayout(m_pipelineLayouts[RADIANCE_C]);
-	commandList.SetPipelineState(m_pipelines[RADIANCE_C]);
-	commandList.SetComputeDescriptorTable(0, m_samplerTable);
 	commandList.SetCompute32BitConstant(1, reinterpret_cast<const uint32_t&>(blend));
 
-	m_radiance.Texture2D::Blit(commandList, 8, 8, 1, m_uavTables[TABLE_RADIANCE][0],
-		2, 0, m_srvTables[TABLE_RADIANCE][i], 3);
-}
-
-void LightProbe::generateMipsGraphics(const CommandList& commandList, ResourceState dstState)
-{
-	ResourceBarrier barriers[13];
-	auto numBarriers = m_radiance.SetBarrier(barriers, dstState);
-	numBarriers = m_irradiance.GenerateMips(commandList, barriers,
-		ResourceState::PIXEL_SHADER_RESOURCE, m_pipelineLayouts[RESAMPLE_G],
-		m_pipelines[RESAMPLE_G], m_srvTables[TABLE_RESAMPLE].data(),
-		1, m_samplerTable, 0, numBarriers, 1, m_numMips - 1);
-	commandList.Barrier(numBarriers, barriers);
-}
-
-void LightProbe::generateMipsCompute(const CommandList& commandList, ResourceState dstState)
-{
-	ResourceBarrier barriers[13];
-	auto numBarriers = m_radiance.SetBarrier(barriers, dstState);
-	numBarriers = m_irradiance.Texture2D::GenerateMips(commandList, barriers, 8, 8,
-		1, ResourceState::NON_PIXEL_SHADER_RESOURCE, m_pipelineLayouts[RESAMPLE_C],
-		m_pipelines[RESAMPLE_C], &m_uavTables[TABLE_RESAMPLE][1], 1, m_samplerTable,
-		0, numBarriers, &m_srvTables[TABLE_RESAMPLE][0], 2, 1, m_numMips - 1);
-	commandList.Barrier(numBarriers, barriers);
-}
-
-void LightProbe::upsampleGraphics(const CommandList& commandList, ResourceState dstState)
-{
-	// Up sampling
-	ResourceBarrier barriers[12];
-	auto numBarriers = 0u;
-	commandList.SetGraphicsPipelineLayout(m_pipelineLayouts[UP_SAMPLE_G]);
-	commandList.SetPipelineState(m_pipelines[UP_SAMPLE_G]);
-	commandList.SetGraphicsDescriptorTable(0, m_samplerTable);
-
-	CosConstants::Immutable cb = { m_mapSize, m_numMips };
-	commandList.SetGraphics32BitConstants(2, SizeOfInUint32(cb), &cb);
-
-	const uint8_t numPasses = m_numMips - 1;
-	for (auto i = 0ui8; i + 1 < numPasses; ++i)
-	{
-		const auto c = numPasses - i;
-		const auto level = c - 1;
-		commandList.SetGraphics32BitConstant(2, level, SizeOfInUint32(cb));
-		numBarriers = m_irradiance.Blit(commandList, barriers, level, c,
-			dstState, m_srvTables[TABLE_RESAMPLE][c], 1, numBarriers,
-			0, 0, SizeOfInUint32(CosConstants));
-	}
-
-	// Final pass
-	commandList.SetGraphicsPipelineLayout(m_pipelineLayouts[FINAL_G]);
-	commandList.SetPipelineState(m_pipelines[FINAL_G]);
-	commandList.SetGraphicsDescriptorTable(0, m_samplerTable);
-	commandList.SetGraphics32BitConstants(2, SizeOfInUint32(cb), &cb);
-	commandList.SetGraphics32BitConstant(2, 0, SizeOfInUint32(cb));
-	numBarriers = m_irradiance.Blit(commandList, barriers, 0, 1,
-		dstState, m_srvTables[TABLE_RESAMPLE][0], 1, numBarriers,
-		0, 0, SizeOfInUint32(CosConstants));
-}
-
-void LightProbe::upsampleCompute(const CommandList& commandList, ResourceState dstState)
-{
-	// Up sampling
-	ResourceBarrier barriers[12];
-	auto numBarriers = 0u;
-	commandList.SetComputePipelineLayout(m_pipelineLayouts[UP_SAMPLE_C]);
-	commandList.SetPipelineState(m_pipelines[UP_SAMPLE_C]);
-	commandList.SetComputeDescriptorTable(0, m_samplerTable);
-
-	CosConstants::Immutable cb = { m_mapSize, m_numMips };
-	commandList.SetCompute32BitConstants(3, SizeOfInUint32(cb), &cb);
-
-	const uint8_t numPasses = m_numMips - 1;
-	for (auto i = 0ui8; i + 1 < numPasses; ++i)
-	{
-		const auto c = numPasses - i;
-		const auto level = c - 1;
-		commandList.SetCompute32BitConstant(3, level, SizeOfInUint32(cb));
-		numBarriers = m_irradiance.Texture2D::Blit(commandList, barriers,
-			8, 8, 1, level, c, dstState, m_uavTables[TABLE_RESAMPLE][level],
-			1, numBarriers, m_srvTables[TABLE_RESAMPLE][c], 2);
-	}
-
-	// Final pass
-	commandList.SetComputePipelineLayout(m_pipelineLayouts[FINAL_C]);
-	commandList.SetPipelineState(m_pipelines[FINAL_C]);
-	commandList.SetComputeDescriptorTable(0, m_samplerTable);
-	commandList.SetCompute32BitConstants(3, SizeOfInUint32(cb), &cb);
-	commandList.SetCompute32BitConstant(3, 0, SizeOfInUint32(cb));
-	numBarriers = m_irradiance.Texture2D::Blit(commandList, barriers,
-		8, 8, 1, 0, 1, dstState, m_uavTables[TABLE_RESAMPLE][0], 1,
-		numBarriers, m_srvTables[TABLE_RESAMPLE][1], 2);
+	m_radiance.Texture2D::Blit(commandList, 8, 8, 1, m_uavTables[TABLE_RADIANCE][0], 2, 0,
+		m_srvTables[TABLE_RADIANCE][i], 3, m_samplerTable, 0, m_pipelines[RADIANCE_C]);
 }
