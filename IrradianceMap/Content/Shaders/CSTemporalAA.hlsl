@@ -86,7 +86,7 @@ min16float3 NeighborMinMax(out min16float4 neighborMin, out min16float4 neighbor
 
 #if	_VARIANCE_AABB_
 #define m1	mu
-	min16float3 m2 = m1 * m1;
+	float3 m2 = m1 * m1;
 #else
 	neighborMin.xyz = neighborMax.xyz = mu;
 #endif
@@ -99,7 +99,7 @@ min16float3 NeighborMinMax(out min16float4 neighborMin, out min16float4 neighbor
 
 #if	_VARIANCE_AABB_
 		m1 += neighbor;
-		m2 = min16float3(m2 + neighbors[i] * neighbors[i]);
+		m2 = m2 + neighbors[i] * neighbors[i];
 #else
 		neighborMin.xyz = min(neighbor, neighborMin.xyz);
 		neighborMax.xyz = max(neighbor, neighborMax.xyz);
@@ -108,7 +108,8 @@ min16float3 NeighborMinMax(out min16float4 neighborMin, out min16float4 neighbor
 
 #if	_VARIANCE_AABB_
 	mu /= NUM_SAMPLES;
-	const min16float3 sigma = sqrt(abs(m2 / NUM_SAMPLES - min16float3((float3)mu * mu)));
+	const min16float3 variance = min16float3(m2 / NUM_SAMPLES - (float3)mu * mu);
+	const min16float3 sigma = sqrt(abs(variance));
 	const min16float3 gsigma = gamma * sigma;
 	neighborMin.xyz = mu - gsigma;
 	neighborMax.xyz = mu + gsigma;
