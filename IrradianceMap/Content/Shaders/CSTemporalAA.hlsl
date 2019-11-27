@@ -72,7 +72,7 @@ min16float4 VelocityMax(int2 tex)
 min16float3 NeighborMinMax(out min16float4 neighborMin, out min16float4 neighborMax,
 	min16float3 mu, int2 tex, min16float gamma = 1.0)
 {
-	static min16float weights[] =
+	static float weights[] =
 	{
 		0.5, 0.5, 0.5, 0.5,
 		0.25, 0.25, 0.25, 0.25
@@ -83,7 +83,7 @@ min16float3 NeighborMinMax(out min16float4 neighborMin, out min16float4 neighbor
 	for (uint i = 0; i < NUM_NEIGHBORS; ++i)
 		neighbors[i] = g_txCurrent[tex + g_texOffsets[i]].xyz;
 
-	min16float3 gaussian = mu;
+	float3 gaussian = mu;
 
 #if	_VARIANCE_AABB_
 #define m1	mu
@@ -96,7 +96,7 @@ min16float3 NeighborMinMax(out min16float4 neighborMin, out min16float4 neighbor
 	for (i = 0; i < NUM_NEIGHBORS; ++i)
 	{
 		const min16float3 neighbor = min16float3(neighbors[i]);
-		gaussian += neighbor * weights[i];
+		gaussian += neighbors[i] * weights[i];
 
 #if	_VARIANCE_AABB_
 		m1 += neighbor;
@@ -123,7 +123,7 @@ min16float3 NeighborMinMax(out min16float4 neighborMin, out min16float4 neighbor
 
 	gaussian /= 4.0;
 
-	return gaussian;
+	return min16float3(gaussian);
 }
 
 //--------------------------------------------------------------------------------------
