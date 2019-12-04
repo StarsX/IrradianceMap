@@ -49,6 +49,15 @@
     <Filter Include="XUSG\Advanced\Source Files">
       <UniqueIdentifier>{de199865-45a6-477c-a64f-3b5d927d84df}</UniqueIdentifier>
     </Filter>
+    <Filter Include="XUSG\Optional">
+      <UniqueIdentifier>{91cfda93-cfa6-4ae9-a9f5-a280770eb7dd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="XUSG\Optional\Header Files">
+      <UniqueIdentifier>{551fbf30-8591-465a-9dd5-bac7ff7d188c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="XUSG\Optional\Source Files">
+      <UniqueIdentifier>{012ee3e8-d574-42d8-8d4f-282a32f8d72a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Common\d3dx12.h">
@@ -114,14 +123,14 @@
     <ClInclude Include="IrradianceMap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Content\ObjLoader.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Content\Renderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Content\LightProbe.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="XUSG\Optional\ObjLoader.h">
+      <Filter>XUSG\Optional\Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -170,14 +179,14 @@
     <ClCompile Include="IrradianceMap.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Content\ObjLoader.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Content\Renderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Content\LightProbe.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="XUSG\Optional\ObjLoader.cpp">
+      <Filter>XUSG\Optional\Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
