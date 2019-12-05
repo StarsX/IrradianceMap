@@ -3,7 +3,7 @@
 //--------------------------------------------------------------------------------------
 
 #include "DXFrameworkHelper.h"
-#include "Optional/ObjLoader.h"
+#include "Optional/XUSGObjLoader.h"
 #include "Renderer.h"
 
 using namespace std;

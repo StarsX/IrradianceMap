@@ -129,7 +129,7 @@
     <ClInclude Include="Content\LightProbe.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="XUSG\Optional\ObjLoader.h">
+    <ClInclude Include="XUSG\Optional\XUSGObjLoader.h">
       <Filter>XUSG\Optional\Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -185,7 +185,7 @@
     <ClCompile Include="Content\LightProbe.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="XUSG\Optional\ObjLoader.cpp">
+    <ClCompile Include="XUSG\Optional\XUSGObjLoader.cpp">
       <Filter>XUSG\Optional\Source Files</Filter>
     </ClCompile>
   </ItemGroup>

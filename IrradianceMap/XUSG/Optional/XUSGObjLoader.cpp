@@ -2,7 +2,7 @@
 // By Stars XU Tianchen
 //--------------------------------------------------------------------------------------
 
-#include "ObjLoader.h"
+#include "XUSGObjLoader.h"
 
 using namespace std;
 using namespace XUSG;
