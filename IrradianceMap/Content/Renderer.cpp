@@ -40,20 +40,18 @@ bool Renderer::Init(const CommandList& commandList, uint32_t width, uint32_t hei
 
 	// Create output views
 	// Render targets
-	m_renderTargets[RT_COLOR].Create(m_device, width, height, Format::R16G16B16A16_FLOAT, 1, ResourceFlag::NONE,
-		1, 1, ResourceState::COMMON, nullptr, false, L"Color");
-	m_renderTargets[RT_VELOCITY].Create(m_device, width, height, Format::R16G16_FLOAT, 1, ResourceFlag::NONE,
-		1, 1, ResourceState::COMMON, nullptr, false, L"Velocity");
-	m_depth.Create(m_device, width, height, Format::D24_UNORM_S8_UINT, ResourceFlag::DENY_SHADER_RESOURCE,
-		1, 1, 1, ResourceState::COMMON, 1.0f, 0, false, L"Depth");
+	m_renderTargets[RT_COLOR].Create(m_device, width, height, Format::R16G16B16A16_FLOAT,
+		1, ResourceFlag::NONE, 1, 1, nullptr, false, L"Color");
+	m_renderTargets[RT_VELOCITY].Create(m_device, width, height, Format::R16G16_FLOAT,
+		1, ResourceFlag::NONE, 1, 1, nullptr, false, L"Velocity");
+	m_depth.Create(m_device, width, height, Format::D24_UNORM_S8_UINT,
+		ResourceFlag::DENY_SHADER_RESOURCE, 1, 1, 1, 1.0f, 0, false, L"Depth");
 
 	// Temporal AA
-	m_outputViews[UAV_PP_TAA].Create(m_device, width, height, Format::R16G16B16A16_FLOAT,
-		1, ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT,
-		ResourceState::COMMON, false, L"TemporalAAOut0");
-	m_outputViews[UAV_PP_TAA1].Create(m_device, width, height, Format::R16G16B16A16_FLOAT,
-		1, ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT,
-		ResourceState::COMMON, false, L"TemporalAAOut1");
+	m_outputViews[UAV_PP_TAA].Create(m_device, width, height, Format::R16G16B16A16_FLOAT, 1,
+		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, false, L"TemporalAAOut0");
+	m_outputViews[UAV_PP_TAA1].Create(m_device, width, height, Format::R16G16B16A16_FLOAT, 1,
+		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, false, L"TemporalAAOut1");
 
 	// Create pipelines
 	N_RETURN(createInputLayout(), false);
@@ -234,12 +232,12 @@ bool Renderer::createVB(const CommandList& commandList, uint32_t numVert,
 	uint32_t stride, const uint8_t* pData, vector<Resource>& uploaders)
 {
 	N_RETURN(m_vertexBuffer.Create(m_device, numVert, stride, ResourceFlag::NONE,
-		MemoryType::DEFAULT, ResourceState::COPY_DEST, 1, nullptr, 1, nullptr,
-		1, nullptr, L"MeshVB"), false);
+		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, 1, nullptr, L"MeshVB"), false);
 	uploaders.emplace_back();
 
-	return m_vertexBuffer.Upload(commandList, uploaders.back(), pData, stride * numVert,
-		ResourceState::NON_PIXEL_SHADER_RESOURCE);
+	return m_vertexBuffer.Upload(commandList, uploaders.back(),
+		ResourceState::NON_PIXEL_SHADER_RESOURCE,
+		pData, stride * numVert);
 }
 
 bool Renderer::createIB(const CommandList& commandList, uint32_t numIndices,
@@ -248,13 +246,12 @@ bool Renderer::createIB(const CommandList& commandList, uint32_t numIndices,
 	m_numIndices = numIndices;
 
 	const uint32_t byteWidth = sizeof(uint32_t) * numIndices;
-	N_RETURN(m_indexBuffer.Create(m_device, byteWidth, Format::R32_UINT,
-		ResourceFlag::NONE, MemoryType::DEFAULT, ResourceState::COPY_DEST,
-		1, nullptr, 1, nullptr, 1, nullptr, L"MeshIB"), false);
+	N_RETURN(m_indexBuffer.Create(m_device, byteWidth, Format::R32_UINT, ResourceFlag::NONE,
+		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, 1, nullptr, L"MeshIB"), false);
 	uploaders.emplace_back();
 
-	return m_indexBuffer.Upload(commandList, uploaders.back(), pData,
-		byteWidth, ResourceState::NON_PIXEL_SHADER_RESOURCE);
+	return m_indexBuffer.Upload(commandList, uploaders.back(),
+		ResourceState::NON_PIXEL_SHADER_RESOURCE, pData, byteWidth);
 }
 
 bool Renderer::createInputLayout()

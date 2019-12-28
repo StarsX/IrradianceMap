@@ -58,12 +58,10 @@ bool LightProbe::Init(const CommandList& commandList, uint32_t width, uint32_t h
 
 	const auto format = Format::R11G11B10_FLOAT;
 	m_radiance.Create(m_device, texWidth, texHeight, format,
-		6, ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1,
-		ResourceState::COMMON, nullptr, true, L"Radiance");
+		6, ResourceFlag::ALLOW_UNORDERED_ACCESS,
+		1, 1, nullptr, true, L"Radiance");
 	m_irradiance.Create(m_device, texWidth, texHeight, format, 6,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, m_numMips, 1,
-		ResourceState::NON_PIXEL_SHADER_RESOURCE |
-		ResourceState::PIXEL_SHADER_RESOURCE,
 		nullptr, true, L"Irradiance");
 
 	N_RETURN(createPipelineLayouts(), false);
@@ -88,7 +86,7 @@ void LightProbe::Process(const CommandList& commandList, ResourceState dstState,
 	};
 	commandList.SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
 
-	ResourceBarrier barriers[12];
+	ResourceBarrier barriers[13];
 	uint32_t numBarriers;
 
 	switch (pipelineType)
