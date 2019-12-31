@@ -235,9 +235,7 @@ bool Renderer::createVB(const CommandList& commandList, uint32_t numVert,
 		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, 1, nullptr, L"MeshVB"), false);
 	uploaders.emplace_back();
 
-	return m_vertexBuffer.Upload(commandList, uploaders.back(),
-		ResourceState::NON_PIXEL_SHADER_RESOURCE,
-		pData, stride * numVert);
+	return m_vertexBuffer.Upload(commandList, uploaders.back(), pData, stride * numVert);
 }
 
 bool Renderer::createIB(const CommandList& commandList, uint32_t numIndices,
@@ -250,8 +248,7 @@ bool Renderer::createIB(const CommandList& commandList, uint32_t numIndices,
 		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, 1, nullptr, L"MeshIB"), false);
 	uploaders.emplace_back();
 
-	return m_indexBuffer.Upload(commandList, uploaders.back(),
-		ResourceState::NON_PIXEL_SHADER_RESOURCE, pData, byteWidth);
+	return m_indexBuffer.Upload(commandList, uploaders.back(), pData, byteWidth);
 }
 
 bool Renderer::createInputLayout()
