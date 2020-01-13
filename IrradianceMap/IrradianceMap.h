@@ -59,8 +59,8 @@ private:
 	// App resources.
 	std::unique_ptr<LightProbe> m_lightProbe;
 	std::unique_ptr<Renderer> m_renderer;
-	XUSG::DepthStencil	m_depth;
-	XMFLOAT4X4			m_proj;
+	XUSG::DepthStencil m_depth;
+	XMFLOAT4X4	m_proj;
 	XMFLOAT4X4	m_view;
 	XMFLOAT3	m_focusPt;
 	XMFLOAT3	m_eyePt;
