@@ -23,9 +23,9 @@ float3 GetCubeTexcoord(uint slice, float3 pos)
 	}
 }
 
-float3 GetCubeTexcoord(uint3 index, float3 dim)
+float3 GetCubeTexcoord(uint3 index, float3 texSize)
 {
-	const float2 radii = dim.xy * 0.5;
+	const float2 radii = texSize.xy * 0.5;
 	float2 xy = index.xy - radii + 0.5;
 	xy.y = -xy.y;
 
@@ -36,10 +36,10 @@ float3 GetCubeTexcoord(uint3 index, float3 dim)
 
 float3 GetCubeTexcoord(uint3 index, RWTexture2DArray<float3> cubeMap)
 {
-	float3 dim;
-	cubeMap.GetDimensions(dim.x, dim.y, dim.z);
+	float3 texSize;
+	cubeMap.GetDimensions(texSize.x, texSize.y, texSize.z);
 
-	return GetCubeTexcoord(index, dim);
+	return GetCubeTexcoord(index, texSize);
 }
 
 float3 GetCubeTexcoord(uint slice, float2 tex)
