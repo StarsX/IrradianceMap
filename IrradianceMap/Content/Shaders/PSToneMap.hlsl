@@ -35,7 +35,7 @@ min16float4 main(float4 Pos : SV_POSITION) : SV_TARGET
 	min16float3 laplace = -4.0 * colors[0];
 	[unroll] for (i = 1; i < 5; ++i) laplace += colors[i];
 
-	colors[0] -= 0.4 * laplace;
+	colors[0] -= 0.25 * laplace;
 
 	return min16float4(colors[0] * 1.25, center.w);
 }
