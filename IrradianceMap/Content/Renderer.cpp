@@ -200,7 +200,7 @@ void Renderer::Render(const CommandList& commandList, uint32_t frameIndex, Resou
 	temporalAA(commandList);
 }
 
-void Renderer::ToneMap(const CommandList& commandList, const Descriptor& rtv,
+void Renderer::Postprocess(const CommandList& commandList, const Descriptor& rtv,
 	uint32_t numBarriers, ResourceBarrier* pBarriers)
 {
 	numBarriers = m_outputViews[UAV_PP_TAA + m_frameParity].SetBarrier(
@@ -212,11 +212,11 @@ void Renderer::ToneMap(const CommandList& commandList, const Descriptor& rtv,
 	commandList.OMSetRenderTargets(1, &rtv);
 
 	// Set descriptor tables
-	commandList.SetGraphicsPipelineLayout(m_pipelineLayouts[TONE_MAP]);
-	commandList.SetGraphicsDescriptorTable(0, m_srvTables[SRV_TABLE_TM + m_frameParity]);
+	commandList.SetGraphicsPipelineLayout(m_pipelineLayouts[POSTPROCESS]);
+	commandList.SetGraphicsDescriptorTable(0, m_srvTables[SRV_TABLE_PP + m_frameParity]);
 
 	// Set pipeline state
-	commandList.SetPipelineState(m_pipelines[TONE_MAP]);
+	commandList.SetPipelineState(m_pipelines[POSTPROCESS]);
 
 	// Set viewport
 	Viewport viewport(0.0f, 0.0f, static_cast<float>(m_viewport.x), static_cast<float>(m_viewport.y));
@@ -318,13 +318,13 @@ bool Renderer::createPipelineLayouts()
 			PipelineLayoutFlag::NONE, L"TemporalAALayout"), false);
 	}
 
-	// This is a pipeline layout for tone mapping
+	// This is a pipeline layout for postprocess
 	{
 		Util::PipelineLayout pipelineLayout;
 		pipelineLayout.SetRange(0, DescriptorType::SRV, 1, 0);
 		pipelineLayout.SetShaderStage(0, Shader::Stage::PS);
-		X_RETURN(m_pipelineLayouts[TONE_MAP], pipelineLayout.GetPipelineLayout(m_pipelineLayoutCache,
-			PipelineLayoutFlag::NONE, L"ToneMappingLayout"), false);
+		X_RETURN(m_pipelineLayouts[POSTPROCESS], pipelineLayout.GetPipelineLayout(m_pipelineLayoutCache,
+			PipelineLayoutFlag::NONE, L"PostprocessLayout"), false);
 	}
 
 	return true;
@@ -398,19 +398,19 @@ bool Renderer::createPipelines(Format rtFormat)
 		X_RETURN(m_pipelines[TEMPORAL_AA], state.GetPipeline(m_computePipelineCache, L"TemporalAA"), false);
 	}
 
-	// Tone mapping
+	// Postprocess
 	{
-		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::PS, psIndex, L"PSToneMap.cso"), false);
+		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::PS, psIndex, L"PSPostprocess.cso"), false);
 
 		Graphics::State state;
-		state.SetPipelineLayout(m_pipelineLayouts[TONE_MAP]);
+		state.SetPipelineLayout(m_pipelineLayouts[POSTPROCESS]);
 		state.SetShader(Shader::Stage::VS, m_shaderPool.GetShader(Shader::Stage::VS, vsIndex));
 		state.SetShader(Shader::Stage::PS, m_shaderPool.GetShader(Shader::Stage::PS, psIndex));
 		state.DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineCache);
 		state.IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
 		state.OMSetNumRenderTargets(1);
 		state.OMSetRTVFormat(0, rtFormat);
-		X_RETURN(m_pipelines[TONE_MAP], state.GetPipeline(m_graphicsPipelineCache, L"ToneMapping"), false);
+		X_RETURN(m_pipelines[POSTPROCESS], state.GetPipeline(m_graphicsPipelineCache, L"Postprocess"), false);
 	}
 
 	return true;
@@ -440,12 +440,12 @@ bool Renderer::createDescriptorTables()
 		X_RETURN(m_srvTables[SRV_TABLE_TAA + i], descriptorTable.GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 
-	// Tone mapping SRVs
+	// Postprocess SRVs
 	for (auto i = 0u; i < 2; ++i)
 	{
 		Util::DescriptorTable descriptorTable;
 		descriptorTable.SetDescriptors(0, 1, &m_outputViews[UAV_PP_TAA + i].GetSRV());
-		X_RETURN(m_srvTables[SRV_TABLE_TM + i], descriptorTable.GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		X_RETURN(m_srvTables[SRV_TABLE_PP + i], descriptorTable.GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 
 	// RTV table

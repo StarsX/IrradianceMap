@@ -31,7 +31,7 @@ public:
 		DirectX::CXMMATRIX viewProj, float glossy, bool isPaused);
 	void Render(const XUSG::CommandList& commandList, uint32_t frameIndex, XUSG::ResourceBarrier* barriers,
 		uint32_t numBarriers = 0, RenderMode mode = MIP_APPROX, bool needClear = false);
-	void ToneMap(const XUSG::CommandList& commandList, const XUSG::Descriptor& rtv,
+	void Postprocess(const XUSG::CommandList& commandList, const XUSG::Descriptor& rtv,
 		uint32_t numBarriers, XUSG::ResourceBarrier* pBarriers);
 
 protected:
@@ -51,7 +51,7 @@ protected:
 		BASE_PASS_SH,
 		ENVIRONMENT,
 		TEMPORAL_AA,
-		TONE_MAP,
+		POSTPROCESS,
 
 		NUM_PIPELINE
 	};
@@ -62,8 +62,8 @@ protected:
 		SRV_TABLE_GT,
 		SRV_TABLE_TAA,
 		SRV_TABLE_TAA1,
-		SRV_TABLE_TM,
-		SRV_TABLE_TM1,
+		SRV_TABLE_PP,
+		SRV_TABLE_PP1,
 
 		NUM_SRV_TABLE
 	};

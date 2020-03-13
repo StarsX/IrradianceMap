@@ -216,9 +216,6 @@
     <FxCompile Include="Content\Shaders\CSTemporalAA.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
-    <FxCompile Include="Content\Shaders\PSToneMap.hlsl">
-      <Filter>Shaders</Filter>
-    </FxCompile>
     <FxCompile Include="Content\Shaders\VSBasePass.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
@@ -253,6 +250,9 @@
       <Filter>Shaders</Filter>
     </FxCompile>
     <FxCompile Include="Content\Shaders\CSFinal.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Content\Shaders\PSPostprocess.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>

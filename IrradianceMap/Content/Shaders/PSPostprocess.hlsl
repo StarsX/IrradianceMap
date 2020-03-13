@@ -29,7 +29,7 @@ min16float4 main(float4 Pos : SV_POSITION) : SV_TARGET
 
 	// Tone mapping
 	[unroll]
-	for (uint i = 0; i < 5; ++i) colors[i] /= colors[i] + 1.0;
+	for (uint i = 0; i < 5; ++i) colors[i] /= colors[i] + 0.7;
 
 	// Unsharp
 	min16float3 laplace = -4.0 * colors[0];

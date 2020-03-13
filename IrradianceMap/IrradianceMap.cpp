@@ -428,7 +428,7 @@ void IrradianceMap::PopulateCommandList()
 
 	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, ResourceState::RENDER_TARGET,
 		0, BARRIER_ALL_SUBRESOURCES, BarrierFlag::END_ONLY);
-	m_renderer->ToneMap(m_commandList, m_renderTargets[m_frameIndex].GetRTV(), numBarriers, barriers);
+	m_renderer->Postprocess(m_commandList, m_renderTargets[m_frameIndex].GetRTV(), numBarriers, barriers);
 	
 	// Indicate that the back buffer will now be used to present.
 	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, ResourceState::PRESENT);
