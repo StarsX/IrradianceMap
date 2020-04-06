@@ -14,17 +14,18 @@ Renderer::Renderer(const Device& device) :
 	m_device(device),
 	m_frameParity(0)
 {
-	m_graphicsPipelineCache.SetDevice(device);
-	m_computePipelineCache.SetDevice(device);
-	m_pipelineLayoutCache.SetDevice(device);
+	m_shaderPool = ShaderPool::MakeUnique();
+	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(device);
+	m_computePipelineCache = Compute::PipelineCache::MakeUnique(device);
+	m_pipelineLayoutCache = PipelineLayoutCache::MakeUnique(device);
 }
 
 Renderer::~Renderer()
 {
 }
 
-bool Renderer::Init(const CommandList& commandList, uint32_t width, uint32_t height,
-	const shared_ptr<DescriptorTableCache>& descriptorTableCache, vector<Resource>& uploaders,
+bool Renderer::Init(CommandList* pCommandList, uint32_t width, uint32_t height,
+	const DescriptorTableCache::sptr& descriptorTableCache, vector<Resource>& uploaders,
 	const char* fileName, Format rtFormat, const XMFLOAT4& posScale)
 {
 	m_descriptorTableCache = descriptorTableCache;
@@ -35,22 +36,26 @@ bool Renderer::Init(const CommandList& commandList, uint32_t width, uint32_t hei
 	// Load inputs
 	ObjLoader objLoader;
 	if (!objLoader.Import(fileName, true, true)) return false;
-	N_RETURN(createVB(commandList, objLoader.GetNumVertices(), objLoader.GetVertexStride(), objLoader.GetVertices(), uploaders), false);
-	N_RETURN(createIB(commandList, objLoader.GetNumIndices(), objLoader.GetIndices(), uploaders), false);
+	N_RETURN(createVB(pCommandList, objLoader.GetNumVertices(), objLoader.GetVertexStride(), objLoader.GetVertices(), uploaders), false);
+	N_RETURN(createIB(pCommandList, objLoader.GetNumIndices(), objLoader.GetIndices(), uploaders), false);
 
 	// Create output views
 	// Render targets
-	m_renderTargets[RT_COLOR].Create(m_device, width, height, Format::R16G16B16A16_FLOAT,
+	for (auto& renderTarget : m_renderTargets) renderTarget = RenderTarget::MakeUnique();
+	m_renderTargets[RT_COLOR]->Create(m_device, width, height, Format::R16G16B16A16_FLOAT,
 		1, ResourceFlag::NONE, 1, 1, nullptr, false, L"Color");
-	m_renderTargets[RT_VELOCITY].Create(m_device, width, height, Format::R16G16_FLOAT,
+	m_renderTargets[RT_VELOCITY]->Create(m_device, width, height, Format::R16G16_FLOAT,
 		1, ResourceFlag::NONE, 1, 1, nullptr, false, L"Velocity");
-	m_depth.Create(m_device, width, height, Format::D24_UNORM_S8_UINT,
+
+	m_depth = DepthStencil::MakeUnique();
+	m_depth->Create(m_device, width, height, Format::D24_UNORM_S8_UINT,
 		ResourceFlag::DENY_SHADER_RESOURCE, 1, 1, 1, 1.0f, 0, false, L"Depth");
 
 	// Temporal AA
-	m_outputViews[UAV_PP_TAA].Create(m_device, width, height, Format::R16G16B16A16_FLOAT, 1,
+	for (auto& outViews : m_outputViews) outViews = Texture2D::MakeUnique();
+	m_outputViews[UAV_PP_TAA]->Create(m_device, width, height, Format::R16G16B16A16_FLOAT, 1,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, false, L"TemporalAAOut0");
-	m_outputViews[UAV_PP_TAA1].Create(m_device, width, height, Format::R16G16B16A16_FLOAT, 1,
+	m_outputViews[UAV_PP_TAA1]->Create(m_device, width, height, Format::R16G16B16A16_FLOAT, 1,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, false, L"TemporalAAOut1");
 
 	// Create pipelines
@@ -65,9 +70,9 @@ bool Renderer::Init(const CommandList& commandList, uint32_t width, uint32_t hei
 bool Renderer::SetLightProbes(const Descriptor& irradiance, const Descriptor& radiance)
 {
 	const Descriptor descriptors[] = { radiance, irradiance };
-	Util::DescriptorTable descriptorTable;
-	descriptorTable.SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-	X_RETURN(m_srvTables[SRV_TABLE_BASE], descriptorTable.GetCbvSrvUavTable(*m_descriptorTableCache), false);
+	const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+	descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
+	X_RETURN(m_srvTables[SRV_TABLE_BASE], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 
 	return true;
 }
@@ -75,18 +80,18 @@ bool Renderer::SetLightProbes(const Descriptor& irradiance, const Descriptor& ra
 bool Renderer::SetLightProbesGT(const Descriptor& irradiance, const Descriptor& radiance)
 {
 	const Descriptor descriptors[] = { radiance, irradiance };
-	Util::DescriptorTable descriptorTable;
-	descriptorTable.SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-	X_RETURN(m_srvTables[SRV_TABLE_GT], descriptorTable.GetCbvSrvUavTable(*m_descriptorTableCache), false);
+	const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+	descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
+	X_RETURN(m_srvTables[SRV_TABLE_GT], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 
 	return true;
 }
 
 bool Renderer::SetLightProbesSH(const Descriptor& coeffSH)
 {
-	Util::DescriptorTable cbvTable;
-	cbvTable.SetDescriptors(0, 1, &coeffSH);
-	X_RETURN(m_cbvTable, cbvTable.GetCbvSrvUavTable(*m_descriptorTableCache), false);
+	const auto cbvTable = Util::DescriptorTable::MakeUnique();
+	cbvTable->SetDescriptors(0, 1, &coeffSH);
+	X_RETURN(m_cbvTable, cbvTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 
 	return true;
 }
@@ -180,75 +185,77 @@ void Renderer::UpdateFrame(uint32_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewP
 	m_frameParity = !m_frameParity;
 }
 
-void Renderer::Render(const CommandList& commandList, uint32_t frameIndex, ResourceBarrier* barriers,
+void Renderer::Render(const CommandList* pCommandList, uint32_t frameIndex, ResourceBarrier* barriers,
 	uint32_t numBarriers, RenderMode mode, bool needClear)
 {
-	numBarriers = m_renderTargets[RT_COLOR].SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
-	numBarriers = m_renderTargets[RT_VELOCITY].SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
-	numBarriers = m_depth.SetBarrier(barriers, ResourceState::DEPTH_WRITE, numBarriers);
-	numBarriers = m_outputViews[UAV_PP_TAA + !m_frameParity].SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE |
+	numBarriers = m_renderTargets[RT_COLOR]->SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
+	numBarriers = m_renderTargets[RT_VELOCITY]->SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
+	numBarriers = m_depth->SetBarrier(barriers, ResourceState::DEPTH_WRITE, numBarriers);
+	numBarriers = m_outputViews[UAV_PP_TAA + !m_frameParity]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE |
 		ResourceState::PIXEL_SHADER_RESOURCE, numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
-	commandList.Barrier(numBarriers, barriers);
-	render(commandList, mode, needClear);
+	pCommandList->Barrier(numBarriers, barriers);
+	render(pCommandList, mode, needClear);
 
-	numBarriers = m_renderTargets[RT_VELOCITY].SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE,
+	numBarriers = m_renderTargets[RT_VELOCITY]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE,
 		0, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
-	commandList.Barrier(numBarriers, barriers);
+	pCommandList->Barrier(numBarriers, barriers);
 
-	environment(commandList);
+	environment(pCommandList);
 
-	temporalAA(commandList);
+	temporalAA(pCommandList);
 }
 
-void Renderer::Postprocess(const CommandList& commandList, const Descriptor& rtv,
+void Renderer::Postprocess(const CommandList* pCommandList, const Descriptor& rtv,
 	uint32_t numBarriers, ResourceBarrier* pBarriers)
 {
-	numBarriers = m_outputViews[UAV_PP_TAA + m_frameParity].SetBarrier(
+	numBarriers = m_outputViews[UAV_PP_TAA + m_frameParity]->SetBarrier(
 		pBarriers, ResourceState::NON_PIXEL_SHADER_RESOURCE |
 		ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
-	commandList.Barrier(numBarriers, pBarriers);
+	pCommandList->Barrier(numBarriers, pBarriers);
 
 	// Set render target
-	commandList.OMSetRenderTargets(1, &rtv);
+	pCommandList->OMSetRenderTargets(1, &rtv);
 
 	// Set descriptor tables
-	commandList.SetGraphicsPipelineLayout(m_pipelineLayouts[POSTPROCESS]);
-	commandList.SetGraphicsDescriptorTable(0, m_srvTables[SRV_TABLE_PP + m_frameParity]);
+	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[POSTPROCESS]);
+	pCommandList->SetGraphicsDescriptorTable(0, m_srvTables[SRV_TABLE_PP + m_frameParity]);
 
 	// Set pipeline state
-	commandList.SetPipelineState(m_pipelines[POSTPROCESS]);
+	pCommandList->SetPipelineState(m_pipelines[POSTPROCESS]);
 
 	// Set viewport
 	Viewport viewport(0.0f, 0.0f, static_cast<float>(m_viewport.x), static_cast<float>(m_viewport.y));
 	RectRange scissorRect(0, 0, m_viewport.x, m_viewport.y);
-	commandList.RSSetViewports(1, &viewport);
-	commandList.RSSetScissorRects(1, &scissorRect);
+	pCommandList->RSSetViewports(1, &viewport);
+	pCommandList->RSSetScissorRects(1, &scissorRect);
 
-	commandList.IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
-	commandList.Draw(3, 1, 0, 0);
+	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
+	pCommandList->Draw(3, 1, 0, 0);
 }
 
-bool Renderer::createVB(const CommandList& commandList, uint32_t numVert,
+bool Renderer::createVB(CommandList* pCommandList, uint32_t numVert,
 	uint32_t stride, const uint8_t* pData, vector<Resource>& uploaders)
 {
-	N_RETURN(m_vertexBuffer.Create(m_device, numVert, stride, ResourceFlag::NONE,
+	m_vertexBuffer = VertexBuffer::MakeUnique();
+	N_RETURN(m_vertexBuffer->Create(m_device, numVert, stride, ResourceFlag::NONE,
 		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, 1, nullptr, L"MeshVB"), false);
 	uploaders.emplace_back();
 
-	return m_vertexBuffer.Upload(commandList, uploaders.back(), pData, stride * numVert);
+	return m_vertexBuffer->Upload(pCommandList, uploaders.back(), pData, stride * numVert);
 }
 
-bool Renderer::createIB(const CommandList& commandList, uint32_t numIndices,
+bool Renderer::createIB(CommandList* pCommandList, uint32_t numIndices,
 	const uint32_t* pData, vector<Resource>& uploaders)
 {
 	m_numIndices = numIndices;
 
 	const uint32_t byteWidth = sizeof(uint32_t) * numIndices;
-	N_RETURN(m_indexBuffer.Create(m_device, byteWidth, Format::R32_UINT, ResourceFlag::NONE,
+	m_indexBuffer = IndexBuffer::MakeUnique();
+	N_RETURN(m_indexBuffer->Create(m_device, byteWidth, Format::R32_UINT, ResourceFlag::NONE,
 		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, 1, nullptr, L"MeshIB"), false);
 	uploaders.emplace_back();
 
-	return m_indexBuffer.Upload(commandList, uploaders.back(), pData, byteWidth);
+	return m_indexBuffer->Upload(pCommandList, uploaders.back(), pData, byteWidth);
 }
 
 bool Renderer::createInputLayout()
@@ -260,7 +267,7 @@ bool Renderer::createInputLayout()
 		{ "NORMAL",		0, Format::R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT,	InputClassification::PER_VERTEX_DATA, 0 }
 	};
 
-	X_RETURN(m_inputLayout, m_graphicsPipelineCache.CreateInputLayout(inputElementDescs), false);
+	X_RETURN(m_inputLayout, m_graphicsPipelineCache->CreateInputLayout(inputElementDescs), false);
 
 	return true;
 }
@@ -269,61 +276,61 @@ bool Renderer::createPipelineLayouts()
 {
 	// This is a pipeline layout for base pass
 	{
-		Util::PipelineLayout pipelineLayout;
-		pipelineLayout.SetConstants(VS_CONSTANTS, SizeOfInUint32(BasePassConstants), 0, 0, Shader::Stage::VS);
-		pipelineLayout.SetConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT4), 0, 0, Shader::Stage::PS);
-		pipelineLayout.SetRange(SHADER_RESOURCES, DescriptorType::SRV, 2, 0);
-		pipelineLayout.SetShaderStage(SHADER_RESOURCES, Shader::PS);
-		pipelineLayout.SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
-		pipelineLayout.SetShaderStage(SAMPLER, Shader::PS);
-		X_RETURN(m_pipelineLayouts[BASE_PASS], pipelineLayout.GetPipelineLayout(m_pipelineLayoutCache,
+		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
+		pipelineLayout->SetConstants(VS_CONSTANTS, SizeOfInUint32(BasePassConstants), 0, 0, Shader::Stage::VS);
+		pipelineLayout->SetConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT4), 0, 0, Shader::Stage::PS);
+		pipelineLayout->SetRange(SHADER_RESOURCES, DescriptorType::SRV, 2, 0);
+		pipelineLayout->SetShaderStage(SHADER_RESOURCES, Shader::PS);
+		pipelineLayout->SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetShaderStage(SAMPLER, Shader::PS);
+		X_RETURN(m_pipelineLayouts[BASE_PASS], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
 			PipelineLayoutFlag::ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, L"BasePassLayout"), false);
 	}
 
 	// This is a pipeline layout for base pass SH
 	{
-		Util::PipelineLayout pipelineLayout;
-		pipelineLayout.SetConstants(VS_CONSTANTS, SizeOfInUint32(BasePassConstants), 0, 0, Shader::Stage::VS);
-		pipelineLayout.SetConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT4), 0, 0, Shader::Stage::PS);
-		pipelineLayout.SetRange(CBUFFER, DescriptorType::CBV, 1, 1);
-		pipelineLayout.SetShaderStage(CBUFFER, Shader::PS);
-		pipelineLayout.SetRange(SHADER_RESOURCES, DescriptorType::SRV, 1, 0);
-		pipelineLayout.SetShaderStage(SHADER_RESOURCES, Shader::PS);
-		pipelineLayout.SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
-		pipelineLayout.SetShaderStage(SAMPLER, Shader::PS);
-		X_RETURN(m_pipelineLayouts[BASE_PASS_SH], pipelineLayout.GetPipelineLayout(m_pipelineLayoutCache,
+		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
+		pipelineLayout->SetConstants(VS_CONSTANTS, SizeOfInUint32(BasePassConstants), 0, 0, Shader::Stage::VS);
+		pipelineLayout->SetConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT4), 0, 0, Shader::Stage::PS);
+		pipelineLayout->SetRange(CBUFFER, DescriptorType::CBV, 1, 1);
+		pipelineLayout->SetShaderStage(CBUFFER, Shader::PS);
+		pipelineLayout->SetRange(SHADER_RESOURCES, DescriptorType::SRV, 1, 0);
+		pipelineLayout->SetShaderStage(SHADER_RESOURCES, Shader::PS);
+		pipelineLayout->SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetShaderStage(SAMPLER, Shader::PS);
+		X_RETURN(m_pipelineLayouts[BASE_PASS_SH], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
 			PipelineLayoutFlag::ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, L"BasePassLayout"), false);
 	}
 
 	// This is a pipeline layout for drawing environment
 	{
-		Util::PipelineLayout pipelineLayout;
-		pipelineLayout.SetConstants(PS_CONSTANTS, SizeOfInUint32(PerFrameConstants), 0, 0, Shader::Stage::PS);
-		pipelineLayout.SetRange(SHADER_RESOURCES, DescriptorType::SRV, 1, 0);
-		pipelineLayout.SetShaderStage(SHADER_RESOURCES, Shader::Stage::PS);
-		pipelineLayout.SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
-		pipelineLayout.SetShaderStage(SAMPLER, Shader::PS);
-		X_RETURN(m_pipelineLayouts[ENVIRONMENT], pipelineLayout.GetPipelineLayout(m_pipelineLayoutCache,
+		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
+		pipelineLayout->SetConstants(PS_CONSTANTS, SizeOfInUint32(PerFrameConstants), 0, 0, Shader::Stage::PS);
+		pipelineLayout->SetRange(SHADER_RESOURCES, DescriptorType::SRV, 1, 0);
+		pipelineLayout->SetShaderStage(SHADER_RESOURCES, Shader::Stage::PS);
+		pipelineLayout->SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
+		pipelineLayout->SetShaderStage(SAMPLER, Shader::PS);
+		X_RETURN(m_pipelineLayouts[ENVIRONMENT], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
 			PipelineLayoutFlag::NONE, L"EnvironmentLayout"), false);
 	}
 
 	// This is a pipeline layout for temporal AA
 	{
-		Util::PipelineLayout pipelineLayout;
-		pipelineLayout.SetRange(OUTPUT_VIEW, DescriptorType::UAV, 1, 0, 0,
+		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
+		pipelineLayout->SetRange(OUTPUT_VIEW, DescriptorType::UAV, 1, 0, 0,
 			DescriptorRangeFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
-		pipelineLayout.SetRange(SHADER_RESOURCES, DescriptorType::SRV, 3, 0);
-		pipelineLayout.SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
-		X_RETURN(m_pipelineLayouts[TEMPORAL_AA], pipelineLayout.GetPipelineLayout(m_pipelineLayoutCache,
+		pipelineLayout->SetRange(SHADER_RESOURCES, DescriptorType::SRV, 3, 0);
+		pipelineLayout->SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
+		X_RETURN(m_pipelineLayouts[TEMPORAL_AA], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
 			PipelineLayoutFlag::NONE, L"TemporalAALayout"), false);
 	}
 
 	// This is a pipeline layout for postprocess
 	{
-		Util::PipelineLayout pipelineLayout;
-		pipelineLayout.SetRange(0, DescriptorType::SRV, 1, 0);
-		pipelineLayout.SetShaderStage(0, Shader::Stage::PS);
-		X_RETURN(m_pipelineLayouts[POSTPROCESS], pipelineLayout.GetPipelineLayout(m_pipelineLayoutCache,
+		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
+		pipelineLayout->SetRange(0, DescriptorType::SRV, 1, 0);
+		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
+		X_RETURN(m_pipelineLayouts[POSTPROCESS], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
 			PipelineLayoutFlag::NONE, L"PostprocessLayout"), false);
 	}
 
@@ -337,80 +344,80 @@ bool Renderer::createPipelines(Format rtFormat)
 	auto csIndex = 0u;
 
 	// Base pass
-	N_RETURN(m_shaderPool.CreateShader(Shader::Stage::VS, vsIndex, L"VSBasePass.cso"), false);
+	N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSBasePass.cso"), false);
 	{
-		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::PS, psIndex, L"PSBasePass.cso"), false);
+		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSBasePass.cso"), false);
 
-		Graphics::State state;
-		state.IASetInputLayout(m_inputLayout);
-		state.SetPipelineLayout(m_pipelineLayouts[BASE_PASS]);
-		state.SetShader(Shader::Stage::VS, m_shaderPool.GetShader(Shader::Stage::VS, vsIndex));
-		state.SetShader(Shader::Stage::PS, m_shaderPool.GetShader(Shader::Stage::PS, psIndex++));
-		state.IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
-		state.OMSetNumRenderTargets(NUM_RENDER_TARGET);
-		state.OMSetRTVFormat(RT_COLOR, Format::R16G16B16A16_FLOAT);
-		state.OMSetRTVFormat(RT_VELOCITY, Format::R16G16_FLOAT);
-		state.OMSetDSVFormat(Format::D24_UNORM_S8_UINT);
-		X_RETURN(m_pipelines[BASE_PASS], state.GetPipeline(m_graphicsPipelineCache, L"BasePass"), false);
+		const auto state = Graphics::State::MakeUnique();
+		state->IASetInputLayout(m_inputLayout);
+		state->SetPipelineLayout(m_pipelineLayouts[BASE_PASS]);
+		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex));
+		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
+		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
+		state->OMSetNumRenderTargets(NUM_RENDER_TARGET);
+		state->OMSetRTVFormat(RT_COLOR, Format::R16G16B16A16_FLOAT);
+		state->OMSetRTVFormat(RT_VELOCITY, Format::R16G16_FLOAT);
+		state->OMSetDSVFormat(Format::D24_UNORM_S8_UINT);
+		X_RETURN(m_pipelines[BASE_PASS], state->GetPipeline(*m_graphicsPipelineCache, L"BasePass"), false);
 	}
 
 	// Base pass SH
 	{
-		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::PS, psIndex, L"PSBasePassSH.cso"), false);
+		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSBasePassSH.cso"), false);
 
-		Graphics::State state;
-		state.IASetInputLayout(m_inputLayout);
-		state.SetPipelineLayout(m_pipelineLayouts[BASE_PASS_SH]);
-		state.SetShader(Shader::Stage::VS, m_shaderPool.GetShader(Shader::Stage::VS, vsIndex++));
-		state.SetShader(Shader::Stage::PS, m_shaderPool.GetShader(Shader::Stage::PS, psIndex++));
-		state.IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
-		state.OMSetNumRenderTargets(NUM_RENDER_TARGET);
-		state.OMSetRTVFormat(RT_COLOR, Format::R16G16B16A16_FLOAT);
-		state.OMSetRTVFormat(RT_VELOCITY, Format::R16G16_FLOAT);
-		state.OMSetDSVFormat(Format::D24_UNORM_S8_UINT);
-		X_RETURN(m_pipelines[BASE_PASS_SH], state.GetPipeline(m_graphicsPipelineCache, L"BasePass"), false);
+		const auto state = Graphics::State::MakeUnique();
+		state->IASetInputLayout(m_inputLayout);
+		state->SetPipelineLayout(m_pipelineLayouts[BASE_PASS_SH]);
+		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex++));
+		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
+		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
+		state->OMSetNumRenderTargets(NUM_RENDER_TARGET);
+		state->OMSetRTVFormat(RT_COLOR, Format::R16G16B16A16_FLOAT);
+		state->OMSetRTVFormat(RT_VELOCITY, Format::R16G16_FLOAT);
+		state->OMSetDSVFormat(Format::D24_UNORM_S8_UINT);
+		X_RETURN(m_pipelines[BASE_PASS_SH], state->GetPipeline(*m_graphicsPipelineCache, L"BasePass"), false);
 	}
 
 	// Environment
-	N_RETURN(m_shaderPool.CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
+	N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
 	{
-		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::PS, psIndex, L"PSEnvironment.cso"), false);
+		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSEnvironment.cso"), false);
 
-		Graphics::State state;
-		state.SetPipelineLayout(m_pipelineLayouts[ENVIRONMENT]);
-		state.SetShader(Shader::Stage::VS, m_shaderPool.GetShader(Shader::Stage::VS, vsIndex));
-		state.SetShader(Shader::Stage::PS, m_shaderPool.GetShader(Shader::Stage::PS, psIndex++));
-		state.DSSetState(Graphics::DEPTH_READ_LESS_EQUAL, m_graphicsPipelineCache);
-		state.IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
-		state.OMSetNumRenderTargets(1);
-		state.OMSetRTVFormat(RT_COLOR, Format::R16G16B16A16_FLOAT);
-		state.OMSetDSVFormat(Format::D24_UNORM_S8_UINT);
-		X_RETURN(m_pipelines[ENVIRONMENT], state.GetPipeline(m_graphicsPipelineCache, L"Environment"), false);
+		const auto state = Graphics::State::MakeUnique();
+		state->SetPipelineLayout(m_pipelineLayouts[ENVIRONMENT]);
+		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex));
+		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
+		state->DSSetState(Graphics::DEPTH_READ_LESS_EQUAL, *m_graphicsPipelineCache);
+		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
+		state->OMSetNumRenderTargets(1);
+		state->OMSetRTVFormat(RT_COLOR, Format::R16G16B16A16_FLOAT);
+		state->OMSetDSVFormat(Format::D24_UNORM_S8_UINT);
+		X_RETURN(m_pipelines[ENVIRONMENT], state->GetPipeline(*m_graphicsPipelineCache, L"Environment"), false);
 	}
 
 	// Temporal AA
 	{
-		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::CS, csIndex, L"CSTemporalAA.cso"), false);
+		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, csIndex, L"CSTemporalAA.cso"), false);
 
-		Compute::State state;
-		state.SetPipelineLayout(m_pipelineLayouts[TEMPORAL_AA]);
-		state.SetShader(m_shaderPool.GetShader(Shader::Stage::CS, csIndex++));
-		X_RETURN(m_pipelines[TEMPORAL_AA], state.GetPipeline(m_computePipelineCache, L"TemporalAA"), false);
+		const auto state = Compute::State::MakeUnique();
+		state->SetPipelineLayout(m_pipelineLayouts[TEMPORAL_AA]);
+		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex++));
+		X_RETURN(m_pipelines[TEMPORAL_AA], state->GetPipeline(*m_computePipelineCache, L"TemporalAA"), false);
 	}
 
 	// Postprocess
 	{
-		N_RETURN(m_shaderPool.CreateShader(Shader::Stage::PS, psIndex, L"PSPostprocess.cso"), false);
+		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSPostprocess.cso"), false);
 
-		Graphics::State state;
-		state.SetPipelineLayout(m_pipelineLayouts[POSTPROCESS]);
-		state.SetShader(Shader::Stage::VS, m_shaderPool.GetShader(Shader::Stage::VS, vsIndex));
-		state.SetShader(Shader::Stage::PS, m_shaderPool.GetShader(Shader::Stage::PS, psIndex));
-		state.DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineCache);
-		state.IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
-		state.OMSetNumRenderTargets(1);
-		state.OMSetRTVFormat(0, rtFormat);
-		X_RETURN(m_pipelines[POSTPROCESS], state.GetPipeline(m_graphicsPipelineCache, L"Postprocess"), false);
+		const auto state = Graphics::State::MakeUnique();
+		state->SetPipelineLayout(m_pipelineLayouts[POSTPROCESS]);
+		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex));
+		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex));
+		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, *m_graphicsPipelineCache);
+		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
+		state->OMSetNumRenderTargets(1);
+		state->OMSetRTVFormat(0, rtFormat);
+		X_RETURN(m_pipelines[POSTPROCESS], state->GetPipeline(*m_graphicsPipelineCache, L"Postprocess"), false);
 	}
 
 	return true;
@@ -421,9 +428,9 @@ bool Renderer::createDescriptorTables()
 	// Temporal AA output UAVs
 	for (auto i = 0u; i < 2; ++i)
 	{
-		Util::DescriptorTable descriptorTable;
-		descriptorTable.SetDescriptors(0, 1, &m_outputViews[UAV_PP_TAA + i].GetUAV());
-		X_RETURN(m_uavTables[UAV_TABLE_TAA + i], descriptorTable.GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+		descriptorTable->SetDescriptors(0, 1, &m_outputViews[UAV_PP_TAA + i]->GetUAV());
+		X_RETURN(m_uavTables[UAV_TABLE_TAA + i], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 
 	// Temporal AA input SRVs
@@ -431,103 +438,103 @@ bool Renderer::createDescriptorTables()
 	{
 		const Descriptor descriptors[] =
 		{
-			m_renderTargets[RT_COLOR].GetSRV(),
-			m_outputViews[UAV_PP_TAA + !i].GetSRV(),
-			m_renderTargets[RT_VELOCITY].GetSRV()
+			m_renderTargets[RT_COLOR]->GetSRV(),
+			m_outputViews[UAV_PP_TAA + !i]->GetSRV(),
+			m_renderTargets[RT_VELOCITY]->GetSRV()
 		};
-		Util::DescriptorTable descriptorTable;
-		descriptorTable.SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-		X_RETURN(m_srvTables[SRV_TABLE_TAA + i], descriptorTable.GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
+		X_RETURN(m_srvTables[SRV_TABLE_TAA + i], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 
 	// Postprocess SRVs
 	for (auto i = 0u; i < 2; ++i)
 	{
-		Util::DescriptorTable descriptorTable;
-		descriptorTable.SetDescriptors(0, 1, &m_outputViews[UAV_PP_TAA + i].GetSRV());
-		X_RETURN(m_srvTables[SRV_TABLE_PP + i], descriptorTable.GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+		descriptorTable->SetDescriptors(0, 1, &m_outputViews[UAV_PP_TAA + i]->GetSRV());
+		X_RETURN(m_srvTables[SRV_TABLE_PP + i], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 
 	// RTV table
 	{
 		const Descriptor descriptors[] =
 		{
-			m_renderTargets[RT_COLOR].GetRTV(),
-			m_renderTargets[RT_VELOCITY].GetRTV()
+			m_renderTargets[RT_COLOR]->GetRTV(),
+			m_renderTargets[RT_VELOCITY]->GetRTV()
 		};
-		Util::DescriptorTable rtvTable;
-		rtvTable.SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-		m_framebuffer = rtvTable.GetFramebuffer(*m_descriptorTableCache, &m_depth.GetDSV());
+		const auto rtvTable = Util::DescriptorTable::MakeUnique();
+		rtvTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
+		m_framebuffer = rtvTable->GetFramebuffer(*m_descriptorTableCache, &m_depth->GetDSV());
 	}
 
 	// Create the sampler
 	{
-		Util::DescriptorTable samplerTable;
+		const auto samplerTable = Util::DescriptorTable::MakeUnique();
 		const auto samplerAnisoWrap = SamplerPreset::ANISOTROPIC_WRAP;
-		samplerTable.SetSamplers(0, 1, &samplerAnisoWrap, *m_descriptorTableCache);
-		X_RETURN(m_samplerTable, samplerTable.GetSamplerTable(*m_descriptorTableCache), false);
+		samplerTable->SetSamplers(0, 1, &samplerAnisoWrap, *m_descriptorTableCache);
+		X_RETURN(m_samplerTable, samplerTable->GetSamplerTable(*m_descriptorTableCache), false);
 	}
 
 	return true;
 }
 
-void Renderer::render(const CommandList& commandList, RenderMode mode, bool needClear)
+void Renderer::render(const CommandList* pCommandList, RenderMode mode, bool needClear)
 {
 	// Set framebuffer
-	commandList.OMSetFramebuffer(m_framebuffer);
+	pCommandList->OMSetFramebuffer(m_framebuffer);
 
 	// Clear render target
 	const float clearColor[4] = { 0.2f, 0.2f, 0.7f, 0.0f };
 	const float clearColorNull[4] = {};
-	if (needClear) commandList.ClearRenderTargetView(m_renderTargets[RT_COLOR].GetRTV(), clearColor);
-	commandList.ClearRenderTargetView(m_renderTargets[RT_VELOCITY].GetRTV(), clearColorNull);
-	commandList.ClearDepthStencilView(m_depth.GetDSV(), ClearFlag::DEPTH, 1.0f);
+	if (needClear) pCommandList->ClearRenderTargetView(m_renderTargets[RT_COLOR]->GetRTV(), clearColor);
+	pCommandList->ClearRenderTargetView(m_renderTargets[RT_VELOCITY]->GetRTV(), clearColorNull);
+	pCommandList->ClearDepthStencilView(m_depth->GetDSV(), ClearFlag::DEPTH, 1.0f);
 
 	// Set pipeline state
 	const auto pipeIdx = mode == SH_APPROX ? BASE_PASS_SH : BASE_PASS;
-	commandList.SetGraphicsPipelineLayout(m_pipelineLayouts[pipeIdx]);
-	commandList.SetPipelineState(m_pipelines[pipeIdx]);
+	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[pipeIdx]);
+	pCommandList->SetPipelineState(m_pipelines[pipeIdx]);
 
 	// Set viewport
 	Viewport viewport(0.0f, 0.0f, static_cast<float>(m_viewport.x), static_cast<float>(m_viewport.y));
 	RectRange scissorRect(0, 0, m_viewport.x, m_viewport.y);
-	commandList.RSSetViewports(1, &viewport);
-	commandList.RSSetScissorRects(1, &scissorRect);
+	pCommandList->RSSetViewports(1, &viewport);
+	pCommandList->RSSetScissorRects(1, &scissorRect);
 
-	commandList.IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
+	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
 
 	// Set descriptor tables
-	commandList.SetGraphics32BitConstants(VS_CONSTANTS, SizeOfInUint32(m_cbBasePass), &m_cbBasePass);
-	commandList.SetGraphics32BitConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT4), &m_cbPerFrame);
-	commandList.SetGraphicsDescriptorTable(SHADER_RESOURCES, m_srvTables[mode == GROUND_TRUTH ? SRV_TABLE_GT : SRV_TABLE_BASE]);
-	commandList.SetGraphicsDescriptorTable(SAMPLER, m_samplerTable);
-	if (mode == SH_APPROX) commandList.SetGraphicsDescriptorTable(CBUFFER, m_cbvTable);
+	pCommandList->SetGraphics32BitConstants(VS_CONSTANTS, SizeOfInUint32(m_cbBasePass), &m_cbBasePass);
+	pCommandList->SetGraphics32BitConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT4), &m_cbPerFrame);
+	pCommandList->SetGraphicsDescriptorTable(SHADER_RESOURCES, m_srvTables[mode == GROUND_TRUTH ? SRV_TABLE_GT : SRV_TABLE_BASE]);
+	pCommandList->SetGraphicsDescriptorTable(SAMPLER, m_samplerTable);
+	if (mode == SH_APPROX) pCommandList->SetGraphicsDescriptorTable(CBUFFER, m_cbvTable);
 
-	commandList.IASetVertexBuffers(0, 1, &m_vertexBuffer.GetVBV());
-	commandList.IASetIndexBuffer(m_indexBuffer.GetIBV());
+	pCommandList->IASetVertexBuffers(0, 1, &m_vertexBuffer->GetVBV());
+	pCommandList->IASetIndexBuffer(m_indexBuffer->GetIBV());
 
-	commandList.DrawIndexed(m_numIndices, 1, 0, 0, 0);
+	pCommandList->DrawIndexed(m_numIndices, 1, 0, 0, 0);
 }
 
-void Renderer::environment(const CommandList& commandList)
+void Renderer::environment(const CommandList* pCommandList)
 {
 	// Set render target
-	commandList.OMSetRenderTargets(1, &m_renderTargets[RT_COLOR].GetRTV(), &m_depth.GetDSV());
+	pCommandList->OMSetRenderTargets(1, &m_renderTargets[RT_COLOR]->GetRTV(), &m_depth->GetDSV());
 
 	// Set descriptor tables
-	commandList.SetGraphicsPipelineLayout(m_pipelineLayouts[ENVIRONMENT]);
-	commandList.SetGraphics32BitConstants(PS_CONSTANTS, SizeOfInUint32(m_cbPerFrame), &m_cbPerFrame);
-	commandList.SetGraphicsDescriptorTable(SHADER_RESOURCES, m_srvTables[SRV_TABLE_BASE]);
-	commandList.SetGraphicsDescriptorTable(SAMPLER, m_samplerTable);
+	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[ENVIRONMENT]);
+	pCommandList->SetGraphics32BitConstants(PS_CONSTANTS, SizeOfInUint32(m_cbPerFrame), &m_cbPerFrame);
+	pCommandList->SetGraphicsDescriptorTable(SHADER_RESOURCES, m_srvTables[SRV_TABLE_BASE]);
+	pCommandList->SetGraphicsDescriptorTable(SAMPLER, m_samplerTable);
 
 	// Set pipeline state
-	commandList.SetPipelineState(m_pipelines[ENVIRONMENT]);
+	pCommandList->SetPipelineState(m_pipelines[ENVIRONMENT]);
 
-	commandList.IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
-	commandList.Draw(3, 1, 0, 0);
+	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
+	pCommandList->Draw(3, 1, 0, 0);
 }
 
-void Renderer::temporalAA(const CommandList& commandList)
+void Renderer::temporalAA(const CommandList* pCommandList)
 {
 	// Bind the heaps, acceleration structure and dispatch rays.
 	const DescriptorPool descriptorPools[] =
@@ -535,24 +542,24 @@ void Renderer::temporalAA(const CommandList& commandList)
 		m_descriptorTableCache->GetDescriptorPool(CBV_SRV_UAV_POOL),
 		m_descriptorTableCache->GetDescriptorPool(SAMPLER_POOL)
 	};
-	commandList.SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
+	pCommandList->SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
 
 	ResourceBarrier barriers[4];
-	auto numBarriers = m_outputViews[UAV_PP_TAA + m_frameParity].SetBarrier(barriers, ResourceState::UNORDERED_ACCESS);
-	numBarriers = m_renderTargets[RT_COLOR].SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
-	numBarriers = m_outputViews[UAV_PP_TAA + !m_frameParity].SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE |
+	auto numBarriers = m_outputViews[UAV_PP_TAA + m_frameParity]->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS);
+	numBarriers = m_renderTargets[RT_COLOR]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
+	numBarriers = m_outputViews[UAV_PP_TAA + !m_frameParity]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE |
 		ResourceState::PIXEL_SHADER_RESOURCE, numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::END_ONLY);
-	numBarriers = m_renderTargets[RT_VELOCITY].SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE,
+	numBarriers = m_renderTargets[RT_VELOCITY]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE,
 		numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::END_ONLY);
-	commandList.Barrier(numBarriers, barriers);
+	pCommandList->Barrier(numBarriers, barriers);
 
 	// Set descriptor tables
-	commandList.SetComputePipelineLayout(m_pipelineLayouts[TEMPORAL_AA]);
-	commandList.SetComputeDescriptorTable(OUTPUT_VIEW, m_uavTables[UAV_TABLE_TAA + m_frameParity]);
-	commandList.SetComputeDescriptorTable(SHADER_RESOURCES, m_srvTables[SRV_TABLE_TAA + m_frameParity]);
-	commandList.SetComputeDescriptorTable(SAMPLER, m_samplerTable);
+	pCommandList->SetComputePipelineLayout(m_pipelineLayouts[TEMPORAL_AA]);
+	pCommandList->SetComputeDescriptorTable(OUTPUT_VIEW, m_uavTables[UAV_TABLE_TAA + m_frameParity]);
+	pCommandList->SetComputeDescriptorTable(SHADER_RESOURCES, m_srvTables[SRV_TABLE_TAA + m_frameParity]);
+	pCommandList->SetComputeDescriptorTable(SAMPLER, m_samplerTable);
 
 	// Set pipeline state
-	commandList.SetPipelineState(m_pipelines[TEMPORAL_AA]);
-	commandList.Dispatch(DIV_UP(m_viewport.x, 8), DIV_UP(m_viewport.y, 8), 1);
+	pCommandList->SetPipelineState(m_pipelines[TEMPORAL_AA]);
+	pCommandList->Dispatch(DIV_UP(m_viewport.x, 8), DIV_UP(m_viewport.y, 8), 1);
 }

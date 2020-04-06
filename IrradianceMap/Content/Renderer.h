@@ -19,8 +19,8 @@ public:
 	Renderer(const XUSG::Device& device);
 	virtual ~Renderer();
 
-	bool Init(const XUSG::CommandList& commandList, uint32_t width, uint32_t height,
-		const std::shared_ptr<XUSG::DescriptorTableCache>& descriptorTableCache,
+	bool Init(XUSG::CommandList* pCommandList, uint32_t width, uint32_t height,
+		const XUSG::DescriptorTableCache::sptr& descriptorTableCache,
 		std::vector<XUSG::Resource>& uploaders, const char* fileName, XUSG::Format rtFormat,
 		const DirectX::XMFLOAT4& posScale = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f));
 	bool SetLightProbes(const XUSG::Descriptor& irradiance, const XUSG::Descriptor& radiance);
@@ -29,9 +29,9 @@ public:
 
 	void UpdateFrame(uint32_t frameIndex, DirectX::CXMVECTOR eyePt,
 		DirectX::CXMMATRIX viewProj, float glossy, bool isPaused);
-	void Render(const XUSG::CommandList& commandList, uint32_t frameIndex, XUSG::ResourceBarrier* barriers,
+	void Render(const XUSG::CommandList* pCommandList, uint32_t frameIndex, XUSG::ResourceBarrier* barriers,
 		uint32_t numBarriers = 0, RenderMode mode = MIP_APPROX, bool needClear = false);
-	void Postprocess(const XUSG::CommandList& commandList, const XUSG::Descriptor& rtv,
+	void Postprocess(const XUSG::CommandList* pCommandList, const XUSG::Descriptor& rtv,
 		uint32_t numBarriers, XUSG::ResourceBarrier* pBarriers);
 
 protected:
@@ -76,7 +76,7 @@ protected:
 		NUM_UAV_TABLE
 	};
 
-	enum RenderTarget : uint8_t
+	enum RenderTargetIndex : uint8_t
 	{
 		RT_COLOR,
 		RT_VELOCITY,
@@ -111,18 +111,18 @@ protected:
 		DirectX::XMFLOAT4	CoeffSH[9];
 	};
 
-	bool createVB(const XUSG::CommandList& commandList, uint32_t numVert,
+	bool createVB(XUSG::CommandList* pCommandList, uint32_t numVert,
 		uint32_t stride, const uint8_t* pData, std::vector<XUSG::Resource>& uploaders);
-	bool createIB(const XUSG::CommandList& commandList, uint32_t numIndices,
+	bool createIB(XUSG::CommandList* pCommandList, uint32_t numIndices,
 		const uint32_t* pData, std::vector<XUSG::Resource>& uploaders);
 	bool createInputLayout();
 	bool createPipelineLayouts();
 	bool createPipelines(XUSG::Format rtFormat);
 	bool createDescriptorTables();
 
-	void render(const XUSG::CommandList& commandList, RenderMode mode, bool needClear);
-	void environment(const XUSG::CommandList& commandList);
-	void temporalAA(const XUSG::CommandList& commandList);
+	void render(const XUSG::CommandList* pCommandList, RenderMode mode, bool needClear);
+	void environment(const XUSG::CommandList* pCommandList);
+	void temporalAA(const XUSG::CommandList* pCommandList);
 
 	XUSG::Device m_device;
 
@@ -144,16 +144,16 @@ protected:
 	XUSG::DescriptorTable	m_samplerTable;
 	XUSG::Framebuffer		m_framebuffer;
 
-	XUSG::VertexBuffer		m_vertexBuffer;
-	XUSG::IndexBuffer		m_indexBuffer;
+	XUSG::VertexBuffer::uptr	m_vertexBuffer;
+	XUSG::IndexBuffer::uptr		m_indexBuffer;
 
-	XUSG::RenderTarget		m_renderTargets[NUM_RENDER_TARGET];
-	XUSG::Texture2D			m_outputViews[NUM_OUTPUT_VIEW];
-	XUSG::DepthStencil		m_depth;
+	XUSG::RenderTarget::uptr	m_renderTargets[NUM_RENDER_TARGET];
+	XUSG::Texture2D::uptr		m_outputViews[NUM_OUTPUT_VIEW];
+	XUSG::DepthStencil::uptr	m_depth;
 
-	XUSG::ShaderPool				m_shaderPool;
-	XUSG::Graphics::PipelineCache	m_graphicsPipelineCache;
-	XUSG::Compute::PipelineCache	m_computePipelineCache;
-	XUSG::PipelineLayoutCache		m_pipelineLayoutCache;
-	std::shared_ptr<XUSG::DescriptorTableCache> m_descriptorTableCache;
+	XUSG::ShaderPool::uptr				m_shaderPool;
+	XUSG::Graphics::PipelineCache::uptr	m_graphicsPipelineCache;
+	XUSG::Compute::PipelineCache::uptr	m_computePipelineCache;
+	XUSG::PipelineLayoutCache::uptr		m_pipelineLayoutCache;
+	XUSG::DescriptorTableCache::sptr	m_descriptorTableCache;
 };

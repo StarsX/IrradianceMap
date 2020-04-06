@@ -147,13 +147,14 @@ void IrradianceMap::LoadPipeline()
 	ThrowIfFailed(swapChain.As(&m_swapChain));
 	m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
-	m_descriptorTableCache = make_shared<DescriptorTableCache>(m_device, L"DescriptorTableCache");
+	m_descriptorTableCache = DescriptorTableCache::MakeShared(m_device, L"DescriptorTableCache");
 
 	// Create frame resources.
 	// Create a RTV and a command allocator for each frame.
 	for (auto n = 0u; n < FrameCount; n++)
 	{
-		N_RETURN(m_renderTargets[n].CreateFromSwapChain(m_device, m_swapChain, n), ThrowIfFailed(E_FAIL));
+		m_renderTargets[n] = RenderTarget::MakeUnique();
+		N_RETURN(m_renderTargets[n]->CreateFromSwapChain(m_device, m_swapChain, n), ThrowIfFailed(E_FAIL));
 		N_RETURN(m_device->GetCommandAllocator(m_commandAllocators[n], CommandListType::DIRECT), ThrowIfFailed(E_FAIL));
 	}
 }
@@ -162,7 +163,8 @@ void IrradianceMap::LoadPipeline()
 void IrradianceMap::LoadAssets()
 {
 	// Create the command list.
-	N_RETURN(m_device->GetCommandList(m_commandList.GetCommandList(), 0, CommandListType::DIRECT,
+	m_commandList = CommandList::MakeUnique();
+	N_RETURN(m_device->GetCommandList(m_commandList->GetCommandList(), 0, CommandListType::DIRECT,
 		m_commandAllocators[m_frameIndex], nullptr), ThrowIfFailed(E_FAIL));
 
 	m_lightProbe = make_unique<LightProbe>(m_device);
@@ -170,14 +172,14 @@ void IrradianceMap::LoadAssets()
 
 	shared_ptr<ResourceBase> source;
 	vector<Resource> uploaders(0);
-	if (!m_lightProbe->Init(m_commandList, m_width, m_height, m_descriptorTableCache, uploaders,
+	if (!m_lightProbe->Init(m_commandList.get(), m_width, m_height, m_descriptorTableCache, uploaders,
 		m_envFileNames.data(), static_cast<uint32_t>(m_envFileNames.size()), m_typedUAV))
 		ThrowIfFailed(E_FAIL);
 
 	m_renderer = make_unique<Renderer>(m_device);
 	if (!m_renderer) ThrowIfFailed(E_FAIL);
 
-	if (!m_renderer->Init(m_commandList, m_width, m_height, m_descriptorTableCache,
+	if (!m_renderer->Init(m_commandList.get(), m_width, m_height, m_descriptorTableCache,
 		uploaders, m_meshFileName.c_str(), Format::B8G8R8A8_UNORM, m_meshPosScale))
 		ThrowIfFailed(E_FAIL);
 	if (!m_renderer->SetLightProbes(m_lightProbe->GetIrradiance().GetSRV(), m_lightProbe->GetRadiance().GetSRV()))
@@ -186,20 +188,20 @@ void IrradianceMap::LoadAssets()
 	switch (g_renderMode)
 	{
 	case Renderer::SH_APPROX:
-		const auto cbvSH = m_lightProbe->GetSH(m_commandList, L"", &uploaders);
+		const auto cbvSH = m_lightProbe->GetSH(m_commandList.get(), L"", &uploaders);
 		if (!m_renderer->SetLightProbesSH(cbvSH))
 			ThrowIfFailed(E_FAIL);
 		break;
 	case Renderer::GROUND_TRUTH:
-		const auto pIrradianctGT = m_lightProbe->GetIrradianceGT(m_commandList, (m_envFileNames[0] + L"_gt.dds").c_str(), &uploaders);
+		const auto pIrradianctGT = m_lightProbe->GetIrradianceGT(m_commandList.get(), (m_envFileNames[0] + L"_gt.dds").c_str(), &uploaders);
 		if (!m_renderer->SetLightProbesGT(pIrradianctGT->GetSRV(), m_lightProbe->GetRadiance().GetSRV()))
 			ThrowIfFailed(E_FAIL);
 		break;
 	}
 	
 	// Close the command list and execute it to begin the initial GPU setup.
-	ThrowIfFailed(m_commandList.Close());
-	BaseCommandList* const ppCommandLists[] = { m_commandList.GetCommandList().get() };
+	ThrowIfFailed(m_commandList->Close());
+	BaseCommandList* const ppCommandLists[] = { m_commandList->GetCommandList().get() };
 	m_commandQueue->ExecuteCommandLists(static_cast<uint32_t>(size(ppCommandLists)), ppCommandLists);
 
 	// Create synchronization objects and wait until assets have been uploaded to the GPU.
@@ -261,7 +263,7 @@ void IrradianceMap::OnRender()
 	PopulateCommandList();
 
 	// Execute the command list.
-	BaseCommandList* const ppCommandLists[] = { m_commandList.GetCommandList().get() };
+	BaseCommandList* const ppCommandLists[] = { m_commandList->GetCommandList().get() };
 	m_commandQueue->ExecuteCommandLists(static_cast<uint32_t>(size(ppCommandLists)), ppCommandLists);
 
 	// Present the frame.
@@ -412,29 +414,29 @@ void IrradianceMap::PopulateCommandList()
 	// However, when ExecuteCommandList() is called on a particular command 
 	// list, that command list can then be reset at any time and must be before 
 	// re-recording.
-	ThrowIfFailed(m_commandList.Reset(m_commandAllocators[m_frameIndex], nullptr));
+	ThrowIfFailed(m_commandList->Reset(m_commandAllocators[m_frameIndex], nullptr));
 
 	// Record commands.
 	const auto dstState = ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE;
-	m_lightProbe->Process(m_commandList, dstState, m_pipelineType);	// V-cycle
+	m_lightProbe->Process(m_commandList.get(), dstState, m_pipelineType);	// V-cycle
 
 	ResourceBarrier barriers[11];
 	auto numBarriers = 0u;
 	for (auto i = 0ui8; i < 6; ++i)
 		numBarriers = m_lightProbe->GetIrradiance().SetBarrier(barriers, 0, dstState, numBarriers, i);
-	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, ResourceState::RENDER_TARGET,
+	numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::RENDER_TARGET,
 		numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
-	m_renderer->Render(m_commandList, m_frameIndex, barriers, numBarriers, g_renderMode);
+	m_renderer->Render(m_commandList.get(), m_frameIndex, barriers, numBarriers, g_renderMode);
 
-	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, ResourceState::RENDER_TARGET,
+	numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::RENDER_TARGET,
 		0, BARRIER_ALL_SUBRESOURCES, BarrierFlag::END_ONLY);
-	m_renderer->Postprocess(m_commandList, m_renderTargets[m_frameIndex].GetRTV(), numBarriers, barriers);
+	m_renderer->Postprocess(m_commandList.get(), m_renderTargets[m_frameIndex]->GetRTV(), numBarriers, barriers);
 	
 	// Indicate that the back buffer will now be used to present.
-	numBarriers = m_renderTargets[m_frameIndex].SetBarrier(barriers, ResourceState::PRESENT);
-	m_commandList.Barrier(numBarriers, barriers);
+	numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::PRESENT);
+	m_commandList->Barrier(numBarriers, barriers);
 
-	ThrowIfFailed(m_commandList.Close());
+	ThrowIfFailed(m_commandList->Close());
 }
 
 // Wait for pending GPU work to complete.

@@ -22,20 +22,20 @@ public:
 	LightProbe(const XUSG::Device &device);
 	virtual ~LightProbe();
 
-	bool Init(const XUSG::CommandList &commandList, uint32_t width, uint32_t height,
-		const std::shared_ptr<XUSG::DescriptorTableCache>& descriptorTableCache,
-		std::vector<XUSG::Resource> &uploaders, const std::wstring pFileNames[],
+	bool Init(XUSG::CommandList* pCommandList, uint32_t width, uint32_t height,
+		const XUSG::DescriptorTableCache::sptr& descriptorTableCache,
+		std::vector<XUSG::Resource>& uploaders, const std::wstring pFileNames[],
 		uint32_t numFiles, bool typedUAV);
 
 	void UpdateFrame(double time);
-	void Process(const XUSG::CommandList &commandList, XUSG::ResourceState dstState, PipelineType pipelineType);
+	void Process(const XUSG::CommandList* pCommandList, XUSG::ResourceState dstState, PipelineType pipelineType);
 
-	XUSG::ResourceBase* GetIrradianceGT(const XUSG::CommandList& commandList,
+	XUSG::ResourceBase* GetIrradianceGT(XUSG::CommandList* pCommandList,
 		const wchar_t* fileName = nullptr, std::vector<XUSG::Resource>* pUploaders = nullptr);
 	XUSG::Texture2D& GetIrradiance();
 	XUSG::Texture2D& GetRadiance();
-	XUSG::Descriptor GetSH(const XUSG::CommandList& commandList,
-		const wchar_t* fileName = nullptr, std::vector<XUSG::Resource>* pUploaders = nullptr);
+	XUSG::Descriptor GetSH(XUSG::CommandList* pCommandList, const wchar_t* fileName = nullptr,
+		std::vector<XUSG::Resource>* pUploaders = nullptr);
 
 protected:
 	enum PipelineIndex : uint8_t
@@ -64,22 +64,22 @@ protected:
 	bool createPipelines(XUSG::Format rtFormat, bool typedUAV);
 	bool createDescriptorTables();
 
-	uint32_t generateMipsGraphics(const XUSG::CommandList& commandList, XUSG::ResourceBarrier* pBarriers);
-	uint32_t generateMipsCompute(const XUSG::CommandList& commandList, XUSG::ResourceBarrier* pBarriers,
+	uint32_t generateMipsGraphics(const XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers);
+	uint32_t generateMipsCompute(const XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers,
 		XUSG::ResourceState addState = XUSG::ResourceState::COMMON);
 
-	void upsampleGraphics(const XUSG::CommandList& commandList, XUSG::ResourceBarrier* pBarriers, uint32_t numBarriers);
-	void upsampleCompute(const XUSG::CommandList& commandList, XUSG::ResourceBarrier* pBarriers, uint32_t numBarriers);
-	void generateRadianceGraphics(const XUSG::CommandList& commandList);
-	void generateRadianceCompute(const XUSG::CommandList& commandList);
+	void upsampleGraphics(const XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers, uint32_t numBarriers);
+	void upsampleCompute(const XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers, uint32_t numBarriers);
+	void generateRadianceGraphics(const XUSG::CommandList* pCommandList);
+	void generateRadianceCompute(const XUSG::CommandList* pCommandList);
 	
 	XUSG::Device m_device;
 
-	XUSG::ShaderPool				m_shaderPool;
-	XUSG::Graphics::PipelineCache	m_graphicsPipelineCache;
-	XUSG::Compute::PipelineCache	m_computePipelineCache;
-	XUSG::PipelineLayoutCache		m_pipelineLayoutCache;
-	std::shared_ptr<XUSG::DescriptorTableCache> m_descriptorTableCache;
+	XUSG::ShaderPool::uptr				m_shaderPool;
+	XUSG::Graphics::PipelineCache::uptr	m_graphicsPipelineCache;
+	XUSG::Compute::PipelineCache::uptr	m_computePipelineCache;
+	XUSG::PipelineLayoutCache::uptr		m_pipelineLayoutCache;
+	XUSG::DescriptorTableCache::sptr	m_descriptorTableCache;
 
 	XUSG::PipelineLayout	m_pipelineLayouts[NUM_PIPELINE];
 	XUSG::Pipeline			m_pipelines[NUM_PIPELINE];
@@ -88,12 +88,12 @@ protected:
 	std::vector<XUSG::DescriptorTable> m_uavTables[NUM_UAV_SRV];
 	XUSG::DescriptorTable	m_samplerTable;
 
-	std::shared_ptr<XUSG::ResourceBase> m_groundTruth;
-	std::vector<std::shared_ptr<XUSG::ResourceBase>> m_sources;
-	XUSG::RenderTarget		m_radiance;
-	XUSG::RenderTarget		m_irradiance;
+	XUSG::ResourceBase::sptr m_groundTruth;
+	std::vector<XUSG::ResourceBase::sptr> m_sources;
+	XUSG::RenderTarget::uptr	m_radiance;
+	XUSG::RenderTarget::uptr	m_irradiance;
 
-	XUSG::ConstantBuffer	m_cbCoeffSH;
+	XUSG::ConstantBuffer::uptr	m_cbCoeffSH;
 
 	uint8_t					m_numMips;
 	float					m_mapSize;
