@@ -201,7 +201,7 @@ bool LightProbe::createPipelineLayouts()
 		utilPipelineLayout->SetRange(0, DescriptorType::SAMPLER, 1, 0);
 		utilPipelineLayout->SetConstants(1, SizeOfInUint32(float), 0);
 		utilPipelineLayout->SetRange(2, DescriptorType::UAV, 1, 0, 0,
-			DescriptorRangeFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
+			DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		utilPipelineLayout->SetRange(3, DescriptorType::SRV, 2, 0);
 		X_RETURN(m_pipelineLayouts[RADIANCE_C], utilPipelineLayout->GetPipelineLayout(
 			*m_pipelineLayoutCache, PipelineLayoutFlag::NONE, L"RadianceGenerationLayout"), false);
@@ -225,7 +225,7 @@ bool LightProbe::createPipelineLayouts()
 		const auto utilPipelineLayout = Util::PipelineLayout::MakeUnique();
 		utilPipelineLayout->SetRange(0, DescriptorType::SAMPLER, 1, 0);
 		utilPipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0,
-			DescriptorRangeFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
+			DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		utilPipelineLayout->SetRange(2, DescriptorType::SRV, 1, 0);
 		X_RETURN(m_pipelineLayouts[RESAMPLE_C], utilPipelineLayout->GetPipelineLayout(
 			*m_pipelineLayoutCache, PipelineLayoutFlag::NONE, L"ResamplingComputeLayout"), false);
@@ -249,7 +249,7 @@ bool LightProbe::createPipelineLayouts()
 		const auto utilPipelineLayout = Util::PipelineLayout::MakeUnique();
 		utilPipelineLayout->SetRange(0, DescriptorType::SAMPLER, 1, 0);
 		utilPipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0,
-			DescriptorRangeFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
+			DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		utilPipelineLayout->SetRange(2, DescriptorType::SRV, 1, 0);
 		utilPipelineLayout->SetConstants(3, SizeOfInUint32(CosConstants), 0);
 		X_RETURN(m_pipelineLayouts[UP_SAMPLE_C], utilPipelineLayout->GetPipelineLayout(
@@ -274,7 +274,7 @@ bool LightProbe::createPipelineLayouts()
 		const auto utilPipelineLayout = Util::PipelineLayout::MakeUnique();
 		utilPipelineLayout->SetRange(0, DescriptorType::SAMPLER, 1, 0);
 		utilPipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0,
-			DescriptorRangeFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
+			DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		utilPipelineLayout->SetRange(2, DescriptorType::SRV, 2, 0);
 		utilPipelineLayout->SetConstants(3, SizeOfInUint32(CosConstants), 0);
 		X_RETURN(m_pipelineLayouts[FINAL_C], utilPipelineLayout->GetPipelineLayout(

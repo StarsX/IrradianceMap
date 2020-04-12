@@ -318,7 +318,7 @@ bool Renderer::createPipelineLayouts()
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(OUTPUT_VIEW, DescriptorType::UAV, 1, 0, 0,
-			DescriptorRangeFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
+			DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(SHADER_RESOURCES, DescriptorType::SRV, 3, 0);
 		pipelineLayout->SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
 		X_RETURN(m_pipelineLayouts[TEMPORAL_AA], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
