@@ -401,9 +401,9 @@ bool LightProbe::createDescriptorTables()
 	// Get UAV table for radiance generation
 	m_uavTables[TABLE_RADIANCE].resize(1);
 	{
-		const auto utilUavTable = Util::DescriptorTable::MakeUnique();
-		utilUavTable->SetDescriptors(0, 1, &m_radiance->GetUAV());
-		X_RETURN(m_uavTables[TABLE_RADIANCE][0], utilUavTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+		descriptorTable->SetDescriptors(0, 1, &m_radiance->GetUAV());
+		X_RETURN(m_uavTables[TABLE_RADIANCE][0], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 
 	// Get SRV tables for radiance generation
@@ -411,9 +411,9 @@ bool LightProbe::createDescriptorTables()
 	m_srvTables[TABLE_RADIANCE].resize(m_sources.size());
 	for (auto i = 0u; i + 1 < numSources; ++i)
 	{
-		const auto utilSrvTable = Util::DescriptorTable::MakeUnique();
-		utilSrvTable->SetDescriptors(0, 1, &m_sources[i]->GetSRV());
-		X_RETURN(m_srvTables[TABLE_RADIANCE][i], utilSrvTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+		descriptorTable->SetDescriptors(0, 1, &m_sources[i]->GetSRV());
+		X_RETURN(m_srvTables[TABLE_RADIANCE][i], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 	{
 		const auto i = numSources - 1;
@@ -422,34 +422,34 @@ bool LightProbe::createDescriptorTables()
 			m_sources[i]->GetSRV(),
 			m_sources[0]->GetSRV()
 		};
-		const auto utilSrvTable = Util::DescriptorTable::MakeUnique();
-		utilSrvTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-		X_RETURN(m_srvTables[TABLE_RADIANCE][i], utilSrvTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
+		X_RETURN(m_srvTables[TABLE_RADIANCE][i], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 
 	// Get UAVs for resampling
 	m_uavTables[TABLE_RESAMPLE].resize(m_numMips);
 	for (auto i = 0ui8; i < m_numMips; ++i)
 	{
-		const auto utilUavTable = Util::DescriptorTable::MakeUnique();
-		utilUavTable->SetDescriptors(0, 1, &m_irradiance->GetUAV(i));
-		X_RETURN(m_uavTables[TABLE_RESAMPLE][i], utilUavTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+		descriptorTable->SetDescriptors(0, 1, &m_irradiance->GetUAV(i));
+		X_RETURN(m_uavTables[TABLE_RESAMPLE][i], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 
 	// Get SRVs for resampling
 	m_srvTables[TABLE_RESAMPLE].resize(m_numMips);
 	for (auto i = 0ui8; i < m_numMips; ++i)
 	{
-		const auto utilSrvTable = Util::DescriptorTable::MakeUnique();
-		utilSrvTable->SetDescriptors(0, 1, i ? &m_irradiance->GetSRVLevel(i) : &m_radiance->GetSRV());
-		X_RETURN(m_srvTables[TABLE_RESAMPLE][i], utilSrvTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+		descriptorTable->SetDescriptors(0, 1, i ? &m_irradiance->GetSRVLevel(i) : &m_radiance->GetSRV());
+		X_RETURN(m_srvTables[TABLE_RESAMPLE][i], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 
 	// Create the sampler table
-	const auto samplerTable = Util::DescriptorTable::MakeUnique();
+	const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 	const auto sampler = LINEAR_WRAP;
-	samplerTable->SetSamplers(0, 1, &sampler, *m_descriptorTableCache);
-	X_RETURN(m_samplerTable, samplerTable->GetSamplerTable(*m_descriptorTableCache), false);
+	descriptorTable->SetSamplers(0, 1, &sampler, *m_descriptorTableCache);
+	X_RETURN(m_samplerTable, descriptorTable->GetSamplerTable(*m_descriptorTableCache), false);
 
 	return true;
 }

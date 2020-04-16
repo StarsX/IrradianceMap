@@ -462,17 +462,17 @@ bool Renderer::createDescriptorTables()
 			m_renderTargets[RT_COLOR]->GetRTV(),
 			m_renderTargets[RT_VELOCITY]->GetRTV()
 		};
-		const auto rtvTable = Util::DescriptorTable::MakeUnique();
-		rtvTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-		m_framebuffer = rtvTable->GetFramebuffer(*m_descriptorTableCache, &m_depth->GetDSV());
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
+		m_framebuffer = descriptorTable->GetFramebuffer(*m_descriptorTableCache, &m_depth->GetDSV());
 	}
 
 	// Create the sampler
 	{
-		const auto samplerTable = Util::DescriptorTable::MakeUnique();
+		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		const auto samplerAnisoWrap = SamplerPreset::ANISOTROPIC_WRAP;
-		samplerTable->SetSamplers(0, 1, &samplerAnisoWrap, *m_descriptorTableCache);
-		X_RETURN(m_samplerTable, samplerTable->GetSamplerTable(*m_descriptorTableCache), false);
+		descriptorTable->SetSamplers(0, 1, &samplerAnisoWrap, *m_descriptorTableCache);
+		X_RETURN(m_samplerTable, descriptorTable->GetSamplerTable(*m_descriptorTableCache), false);
 	}
 
 	return true;
