@@ -89,9 +89,9 @@ bool Renderer::SetLightProbesGT(const Descriptor& irradiance, const Descriptor& 
 
 bool Renderer::SetLightProbesSH(const Descriptor& coeffSH)
 {
-	const auto cbvTable = Util::DescriptorTable::MakeUnique();
-	cbvTable->SetDescriptors(0, 1, &coeffSH);
-	X_RETURN(m_cbvTable, cbvTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+	const auto descriptorTable = Util::DescriptorTable::MakeUnique();
+	descriptorTable->SetDescriptors(0, 1, &coeffSH);
+	X_RETURN(m_cbvTable, descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 
 	return true;
 }
