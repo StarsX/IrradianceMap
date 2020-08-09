@@ -16,7 +16,9 @@
 //--------------------------------------------------------------------------------------
 // Constants
 //--------------------------------------------------------------------------------------
-static const min16float g_historyMax = min16float(1 << 8) - 1.0;
+static const uint g_historyBits = 4;
+static const uint g_historyMask = (1 << g_historyBits) - 1;
+static const min16float g_historyMax = min16float(g_historyMask);
 
 static const min16float3 g_lumBase = { 0.25, 0.5, 0.25 };
 static const int2 g_texOffsets[] =
@@ -166,7 +168,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
 
 	min16float4 neighborMin, neighborMax;
 	const min16float3 curColor = min16float3(current.xyz);
-	const min16float gamma = historyDiv > 0.0 || current.w < 1.0 ? 1.0 : 16.0;
+	const min16float gamma = historyDiv > 0.0 || current.w <= 0.0 ? 1.0 : 16.0;
 	min16float3 filtered = NeighborMinMax(neighborMin, neighborMax, curColor, DTid, gamma);
 	
 	min16float3 histColor = min16float3(history.xyz);
@@ -183,13 +185,14 @@ void main(uint2 DTid : SV_DispatchThreadID)
 
 	// Calculate Blend factor
 	const min16float distToClamp = min(abs(neighborMin.w - lumHist), abs(neighborMax.w - lumHist));
-	const min16float historyAmt = 1.0 / weight + historyBlur / 8.0;
-	const min16float historyFactor = distToClamp * historyAmt * (1.0 + historyBlur * historyAmt * 8.0);
-	min16float blend = clamp(historyFactor / (distToClamp + contrast), 0.03125, 0.25);
-	//min16float blend = clamp(1.0 / weight, 0.125, 0.25);
+	const float historyAmt = 1.0 / weight + historyBlur / 8.0;
+	const min16float historyFactor = min16float(distToClamp * historyAmt * (1.0 + historyBlur * historyAmt * 8.0));
+	min16float blend = historyFactor / (distToClamp + contrast);
+	blend = historyBlur > 0.0 && current.w > 0.0 ? blend : min16float(historyAmt);
+	blend = min(blend, 0.25);
 
 	const min16float3 result = lerp(histColor, filtered, blend);
-	weight = min(weight / g_historyMax, 1.0 - historyBlur);
+	weight = min(weight / g_historyMax, 1.0);
 
 	g_rwRenderTarget[DTid] = float4(result, weight);
 }
