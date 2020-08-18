@@ -160,15 +160,15 @@ void main(uint2 DTid : SV_DispatchThreadID)
 	// Speed to history blur
 	const float2 historyBlurAmp = 4.0 * texSize;
 	const min16float2 historyBlurs = min16float2(abs(velocity.xy) * historyBlurAmp);
-	const min16float historyBlur = saturate(historyBlurs.x + historyBlurs.y);
+	min16float historyBlur = saturate(historyBlurs.x + historyBlurs.y);
 	
 	min16float weight = min16float(history.w);
-	const min16float historyDiv = max(1.0 - weight, historyBlur);
+	historyBlur = max(1.0 - weight, historyBlur);
 	weight = weight * g_historyMax + 1.0;
 
 	min16float4 neighborMin, neighborMax;
 	const min16float3 curColor = min16float3(current.xyz);
-	const min16float gamma = historyDiv > 0.0 || current.w <= 0.0 ? 1.0 : 16.0;
+	const min16float gamma = historyBlur > 0.0 || current.w <= 0.0 ? 1.0 : 16.0;
 	min16float3 filtered = NeighborMinMax(neighborMin, neighborMax, curColor, DTid, gamma);
 	
 	min16float3 histColor = min16float3(history.xyz);
