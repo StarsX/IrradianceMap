@@ -221,7 +221,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
 	HALF4 filtered = NeighborMinMax(neighborMin, neighborMax, currentTM, DTid, gamma);
 	
 	// Clip historical color
-	HALF3 historyTM = TM(HALF3(history.xyz));
+	HALF3 historyTM = TM(history.xyz);
 	historyTM = clipColor(historyTM, neighborMin.xyz, neighborMax.xyz);
 	const HALF contrast = neighborMax.w - neighborMin.w;
 
