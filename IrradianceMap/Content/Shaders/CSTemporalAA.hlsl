@@ -5,13 +5,25 @@
 //--------------------------------------------------------------------------------------
 // Definitions
 //--------------------------------------------------------------------------------------
-#define	_VARIANCE_AABB_		1
+#ifdef _FORCE_FP32_
+typedef float		HALF;
+typedef float2		HALF2;
+typedef float3		HALF3;
+typedef float4		HALF4;
+#else
+typedef min16float	HALF;
+typedef min16float2	HALF2;
+typedef min16float3	HALF3;
+typedef min16float4	HALF4;
+#endif
 
-#define	NUM_NEIGHBORS		8
-#define	NUM_SAMPLES			(NUM_NEIGHBORS + 1)
-#define	NUM_NEIGHBORS_H		4
+#define	_VARIANCE_AABB_	1
 
-#define GET_LUMA(v)			dot(v, g_lumBase)
+#define	NUM_NEIGHBORS	8
+#define	NUM_SAMPLES		(NUM_NEIGHBORS + 1)
+#define	NUM_NEIGHBORS_H	4
+
+#define GET_LUMA(v)		dot(v, g_lumBase)
 
 //--------------------------------------------------------------------------------------
 // Constants
@@ -20,7 +32,7 @@ static const uint g_historyBits = 4;
 static const uint g_historyMask = (1 << g_historyBits) - 1;
 static const float g_historyMax = g_historyMask;
 
-static const min16float3 g_lumBase = { 0.25, 0.5, 0.25 };
+static const HALF3 g_lumBase = { 0.25, 0.5, 0.25 };
 static const int2 g_texOffsets[] =
 {
 	int2(-1, 0), int2(1, 0), int2(0, -1), int2(0, 1),
@@ -53,9 +65,9 @@ SamplerState g_smpLinear;
 //--------------------------------------------------------------------------------------
 // A fast invertible tone map that preserves color (Reinhard)
 //--------------------------------------------------------------------------------------
-min16float3 TM(float3 hdr)
+HALF3 TM(float3 hdr)
 {
-	const min16float3 rgb = min16float3(hdr);
+	const HALF3 rgb = HALF3(hdr);
 
 	return rgb / (1.0 + dot(rgb, g_lumBase));
 }
@@ -63,7 +75,7 @@ min16float3 TM(float3 hdr)
 //--------------------------------------------------------------------------------------
 // Inverse of preceding function
 //--------------------------------------------------------------------------------------
-min16float3 ITM(min16float3 rgb)
+HALF3 ITM(HALF3 rgb)
 {
 	return rgb / max(1.0 - dot(rgb, g_lumBase), 1e-4);
 }
@@ -71,7 +83,7 @@ min16float3 ITM(min16float3 rgb)
 //--------------------------------------------------------------------------------------
 // Maxinum velocity of 3x3
 //--------------------------------------------------------------------------------------
-min16float4 VelocityMax(int2 pos)
+HALF4 VelocityMax(int2 pos)
 {
 	const float2 velocity = g_txVelocity[pos];
 
@@ -80,16 +92,16 @@ min16float4 VelocityMax(int2 pos)
 	for (uint i = 0; i < NUM_NEIGHBORS_H; ++i)
 		velocities[i] = g_txVelocity[pos + g_texOffsets[i + NUM_NEIGHBORS_H]];
 
-	min16float4 velocityMax = min16float2(velocity).xyxy;
-	min16float speedSq = dot(velocityMax.xy, velocityMax.xy);
+	HALF4 velocityMax = HALF2(velocity).xyxy;
+	HALF speedSq = dot(velocityMax.xy, velocityMax.xy);
 	//[unroll]
 	for (i = 0; i < NUM_NEIGHBORS_H; ++i)
 	{
-		const min16float2 neighbor = min16float2(velocities[i]);
+		const HALF2 neighbor = HALF2(velocities[i]);
 #if 0
 		velocityMax.xy = max(neighbor, velocityMax.xy);
 #else
-		const min16float speedSqN = dot(neighbor, neighbor);
+		const HALF speedSqN = dot(neighbor, neighbor);
 		if (speedSqN > speedSq)
 		{
 			velocityMax.xy = neighbor;
@@ -104,10 +116,10 @@ min16float4 VelocityMax(int2 pos)
 //--------------------------------------------------------------------------------------
 // Minimum and maxinum of the neighbor samples, returning Gaussian blurred color
 //--------------------------------------------------------------------------------------
-min16float4 NeighborMinMax(out min16float4 neighborMin, out min16float4 neighborMax,
-	min16float4 current, int2 pos, min16float gamma = 1.0)
+HALF4 NeighborMinMax(out HALF4 neighborMin, out HALF4 neighborMax,
+	HALF4 current, int2 pos, HALF gamma = 1.0)
 {
-	static const min16float weights[] =
+	static const HALF weights[] =
 	{
 		0.5, 0.5, 0.5, 0.5,
 		0.25, 0.25, 0.25, 0.25
@@ -118,12 +130,12 @@ min16float4 NeighborMinMax(out min16float4 neighborMin, out min16float4 neighbor
 	for (uint i = 0; i < NUM_NEIGHBORS; ++i)
 		neighbors[i] = g_txCurrent[pos + g_texOffsets[i]];
 
-	min16float3 mu = current.xyz;
+	HALF3 mu = current.xyz;
 	current.w = current.w < 0.5 ? 0.0 : 1.0;
 
 #if	_VARIANCE_AABB_
 #define	m1	mu
-	min16float3 m2 = m1 * m1;
+	HALF3 m2 = m1 * m1;
 #else
 	neighborMin.xyz = neighborMax.xyz = mu;
 #endif
@@ -131,7 +143,7 @@ min16float4 NeighborMinMax(out min16float4 neighborMin, out min16float4 neighbor
 	//[unroll]
 	for (i = 0; i < NUM_NEIGHBORS; ++i)
 	{
-		min16float4 neighbor = min16float4(neighbors[i]);
+		HALF4 neighbor = HALF4(neighbors[i]);
 		neighbor.xyz = TM(neighbor.xyz);
 		neighbor.w = neighbor.w < 0.5 ? 0.0 : 1.0;
 		current += neighbor * weights[i];
@@ -147,8 +159,8 @@ min16float4 NeighborMinMax(out min16float4 neighborMin, out min16float4 neighbor
 
 #if	_VARIANCE_AABB_
 	mu /= NUM_SAMPLES;
-	const min16float3 sigma = sqrt(abs(m2 / NUM_SAMPLES - mu * mu));
-	const min16float3 gsigma = gamma * sigma;
+	const HALF3 sigma = sqrt(abs(m2 / NUM_SAMPLES - mu * mu));
+	const HALF3 gsigma = gamma * sigma;
 	neighborMin.xyz = mu - gsigma;
 	neighborMax.xyz = mu + gsigma;
 	neighborMin.w = GET_LUMA(mu - sigma);
@@ -166,14 +178,14 @@ min16float4 NeighborMinMax(out min16float4 neighborMin, out min16float4 neighbor
 //--------------------------------------------------------------------------------------
 // Clip color
 //--------------------------------------------------------------------------------------
-min16float3 clipColor(min16float3 color, min16float3 minColor, min16float3 maxColor)
+HALF3 clipColor(HALF3 color, HALF3 minColor, HALF3 maxColor)
 {
-	const min16float3 cent = 0.5 * (maxColor + minColor);
-	const min16float3 dist = 0.5 * (maxColor - minColor);
+	const HALF3 cent = 0.5 * (maxColor + minColor);
+	const HALF3 dist = 0.5 * (maxColor - minColor);
 
-	const min16float3 disp = color - cent;
-	const min16float3 dir = abs(disp / dist);
-	const min16float maxComp = max(dir.x, max(dir.y, dir.z));
+	const HALF3 disp = color - cent;
+	const HALF3 dir = abs(disp / dist);
+	const HALF maxComp = max(dir.x, max(dir.y, dir.z));
 
 	if (maxComp > 1.0) return cent + disp / maxComp;
 	else return color;
@@ -188,51 +200,51 @@ void main(uint2 DTid : SV_DispatchThreadID)
 
 	// Load G-buffers
 	const float4 current = g_txCurrent[DTid];
-	const min16float4 velocity = VelocityMax(DTid);
+	const HALF4 velocity = VelocityMax(DTid);
 	const float2 uvBack = uv - velocity.xy;
 	float4 history = g_txHistory.SampleLevel(g_smpLinear, uvBack, 0);
 
 	// Speed to history blur
 	const float2 historyBlurAmp = 4.0 * texSize;
-	const min16float2 historyBlurs = min16float2(abs(velocity.xy) * historyBlurAmp);
-	min16float curHistoryBlur = saturate(historyBlurs.x + historyBlurs.y);
+	const HALF2 historyBlurs = HALF2(abs(velocity.xy) * historyBlurAmp);
+	HALF curHistoryBlur = saturate(historyBlurs.x + historyBlurs.y);
 
 	// Evaluate history weight that indicates the convergence from metadata
-	min16float historyBlur = min16float(1.0 - history.w);
+	HALF historyBlur = HALF(1.0 - history.w);
 	historyBlur = max(historyBlur, curHistoryBlur);
 	history.w = history.w * g_historyMax + 1.0;
 
 	// Compute color-space AABB
-	min16float4 neighborMin, neighborMax;
-	const min16float4 currentTM = min16float4(TM(current.xyz), current.w);
-	const min16float gamma = historyBlur > 0.0 || current.w <= 0.0 ? 1.0 : 16.0;
-	min16float4 filtered = NeighborMinMax(neighborMin, neighborMax, currentTM, DTid, gamma);
+	HALF4 neighborMin, neighborMax;
+	const HALF4 currentTM = HALF4(TM(current.xyz), current.w);
+	const HALF gamma = historyBlur > 0.0 || current.w <= 0.0 ? 1.0 : 16.0;
+	HALF4 filtered = NeighborMinMax(neighborMin, neighborMax, currentTM, DTid, gamma);
 	
 	// Clip historical color
-	min16float3 historyTM = TM(min16float3(history.xyz));
+	HALF3 historyTM = TM(HALF3(history.xyz));
 	historyTM = clipColor(historyTM, neighborMin.xyz, neighborMax.xyz);
-	const min16float contrast = neighborMax.w - neighborMin.w;
+	const HALF contrast = neighborMax.w - neighborMin.w;
 
 	// Add aliasing
-	static const min16float lumContrastFactor = 32.0;
-	min16float addAlias = historyBlur * 0.5 + 0.25;
+	static const HALF lumContrastFactor = 32.0;
+	HALF addAlias = historyBlur * 0.5 + 0.25;
 	addAlias = saturate(addAlias + 1.0 / (1.0 + contrast * lumContrastFactor));
 	filtered.xyz = lerp(filtered.xyz, currentTM.xyz, addAlias);
 
 	// Calculate blend factor
-	const min16float lumHist = GET_LUMA(historyTM);
-	const min16float distToClamp = min(abs(neighborMin.w - lumHist), abs(neighborMax.w - lumHist));
+	const HALF lumHist = GET_LUMA(historyTM);
+	const HALF distToClamp = min(abs(neighborMin.w - lumHist), abs(neighborMax.w - lumHist));
 #if 0
 	const float historyAmt = 1.0 / history.w + historyBlur / 8.0;
-	const min16float historyFactor = min16float(distToClamp * historyAmt * (1.0 + historyBlur * historyAmt * 8.0));
-	min16float blend = historyFactor / (distToClamp + contrast);
+	const HALF historyFactor = HALF(distToClamp * historyAmt * (1.0 + historyBlur * historyAmt * 8.0));
+	HALF blend = historyFactor / (distToClamp + contrast);
 #else
-	const min16float historyAmt = min(min16float(1.0 / history.w + historyBlur / 8.0), 1.0);
-	min16float blend = 0.0625 / lerp(2.0, distToClamp + contrast, historyAmt);
+	const HALF historyAmt = min(HALF(1.0 / history.w + historyBlur / 8.0), 1.0);
+	HALF blend = 0.0625 / lerp(2.0, distToClamp + contrast, historyAmt);
 #endif
 	blend = min(blend, 0.25);
 
-	const min16float3 result = ITM(lerp(historyTM, filtered.xyz, blend));
+	const HALF3 result = ITM(lerp(historyTM, filtered.xyz, blend));
 	history.w = min(history.w / g_historyMax, max(1.0 - curHistoryBlur, 0.0));
 
 #ifdef _R11G11B10_
