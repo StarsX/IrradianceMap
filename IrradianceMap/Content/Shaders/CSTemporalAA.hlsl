@@ -244,8 +244,9 @@ void main(uint2 DTid : SV_DispatchThreadID)
 #endif
 	blend = min(blend, 0.25);
 
-	const HALF3 result = ITM(lerp(historyTM, filtered.xyz, blend));
-	history.w = min(history.w / g_historyMax, max(1.0 - curHistoryBlur, 0.0));
+	HALF3 result = ITM(lerp(historyTM, filtered.xyz, blend));
+	result = any(isnan(result)) ? filtered.xyz : result;
+	history.w = min(history.w / g_historyMax, 1.0 - curHistoryBlur);
 
 #ifdef _R11G11B10_
 	g_rwRenderTarget[DTid] = result;
