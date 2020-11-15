@@ -189,15 +189,19 @@ void IrradianceMap::LoadAssets()
 	switch (g_renderMode)
 	{
 	case Renderer::SH_APPROX:
+	{
 		const auto cbvSH = m_lightProbe->GetSH(m_commandList.get(), L"", &uploaders);
 		if (!m_renderer->SetLightProbesSH(cbvSH))
 			ThrowIfFailed(E_FAIL);
 		break;
+	}
 	case Renderer::GROUND_TRUTH:
+	{
 		const auto pIrradianctGT = m_lightProbe->GetIrradianceGT(m_commandList.get(), (m_envFileNames[0] + L"_gt.dds").c_str(), &uploaders);
 		if (!m_renderer->SetLightProbesGT(pIrradianctGT->GetSRV(), m_lightProbe->GetRadiance().GetSRV()))
 			ThrowIfFailed(E_FAIL);
 		break;
+	}
 	}
 	
 	// Close the command list and execute it to begin the initial GPU setup.
