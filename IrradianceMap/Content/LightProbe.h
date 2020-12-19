@@ -95,7 +95,6 @@ protected:
 
 	XUSG::ConstantBuffer::uptr	m_cbCoeffSH;
 
-	uint8_t					m_numMips;
 	float					m_mapSize;
 	double					m_time;
 };

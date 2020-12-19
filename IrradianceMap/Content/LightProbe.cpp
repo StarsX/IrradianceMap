@@ -23,8 +23,7 @@ struct CosConstants
 
 LightProbe::LightProbe(const Device& device) :
 	m_device(device),
-	m_groundTruth(nullptr),
-	m_numMips(11)
+	m_groundTruth(nullptr)
 {
 	m_shaderPool = ShaderPool::MakeUnique();
 	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(device);
@@ -60,7 +59,7 @@ bool LightProbe::Init(CommandList* pCommandList, uint32_t width, uint32_t height
 	}
 
 	// Create resources and pipelines
-	m_numMips = (max)(Log2((max)(texWidth, texHeight)), 1ui8) + 1;
+	const auto numMips = (max)(Log2((max)(texWidth, texHeight)), 1ui8) + 1u;
 	m_mapSize = (texWidth + texHeight) * 0.5f;
 
 	const auto format = Format::R11G11B10_FLOAT;
@@ -71,7 +70,7 @@ bool LightProbe::Init(CommandList* pCommandList, uint32_t width, uint32_t height
 
 	m_irradiance = RenderTarget::MakeUnique();
 	m_irradiance->Create(m_device, texWidth, texHeight, format, 6,
-		ResourceFlag::ALLOW_UNORDERED_ACCESS, m_numMips, 1,
+		ResourceFlag::ALLOW_UNORDERED_ACCESS, numMips, 1,
 		nullptr, true, L"Irradiance");
 
 	N_RETURN(createPipelineLayouts(), false);
@@ -118,7 +117,7 @@ void LightProbe::Process(const CommandList* pCommandList, ResourceState dstState
 		generateRadianceCompute(pCommandList);
 		numBarriers = generateMipsCompute(pCommandList, barriers, ResourceState::PIXEL_SHADER_RESOURCE) - 6;
 		for (auto i = 0ui8; i < 6; ++i)
-			numBarriers = m_irradiance->SetBarrier(barriers, m_numMips - 1,
+			numBarriers = m_irradiance->SetBarrier(barriers, m_irradiance->GetNumMips() - 1,
 				ResourceState::UNORDERED_ACCESS, numBarriers, i);
 		upsampleGraphics(pCommandList, barriers, numBarriers - 6);
 	}
@@ -398,6 +397,8 @@ bool LightProbe::createPipelines(Format rtFormat, bool typedUAV)
 
 bool LightProbe::createDescriptorTables()
 {
+	const auto numMips = m_irradiance->GetNumMips();
+
 	// Get UAV table for radiance generation
 	m_uavTables[TABLE_RADIANCE].resize(1);
 	{
@@ -428,8 +429,8 @@ bool LightProbe::createDescriptorTables()
 	}
 
 	// Get UAVs for resampling
-	m_uavTables[TABLE_RESAMPLE].resize(m_numMips);
-	for (auto i = 0ui8; i < m_numMips; ++i)
+	m_uavTables[TABLE_RESAMPLE].resize(numMips);
+	for (auto i = 0ui8; i < numMips; ++i)
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_irradiance->GetUAV(i));
@@ -437,8 +438,8 @@ bool LightProbe::createDescriptorTables()
 	}
 
 	// Get SRVs for resampling
-	m_srvTables[TABLE_RESAMPLE].resize(m_numMips);
-	for (auto i = 0ui8; i < m_numMips; ++i)
+	m_srvTables[TABLE_RESAMPLE].resize(numMips);
+	for (auto i = 0ui8; i < numMips; ++i)
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, i ? &m_irradiance->GetSRVLevel(i) : &m_radiance->GetSRV());
@@ -480,14 +481,15 @@ void LightProbe::upsampleGraphics(const CommandList* pCommandList, ResourceBarri
 	pCommandList->SetPipelineState(m_pipelines[UP_SAMPLE_BLEND]);
 	pCommandList->SetGraphicsDescriptorTable(0, m_samplerTable);
 
+	const auto numMips = m_irradiance->GetNumMips();
 	struct CosGConstants
 	{
 		CosConstants CosConsts;
 		uint32_t Slice;
-	} cb = { m_mapSize, m_numMips };
+	} cb = { m_mapSize, numMips };
 	pCommandList->SetGraphics32BitConstants(2, SizeOfInUint32(cb.CosConsts.Imm), &cb);
 
-	const uint8_t numPasses = m_numMips - 1;
+	const uint8_t numPasses = numMips - 1;
 	for (auto i = 0ui8; i + 1 < numPasses; ++i)
 	{
 		const auto c = numPasses - i;
@@ -516,10 +518,11 @@ void LightProbe::upsampleCompute(const CommandList* pCommandList, ResourceBarrie
 	pCommandList->SetPipelineState(m_pipelines[UP_SAMPLE_INPLACE]);
 	pCommandList->SetComputeDescriptorTable(0, m_samplerTable);
 
-	CosConstants cb = { m_mapSize, m_numMips };
+	const auto numMips = m_irradiance->GetNumMips();
+	CosConstants cb = { m_mapSize, numMips };
 	pCommandList->SetCompute32BitConstants(3, SizeOfInUint32(cb.Imm), &cb);
 
-	const uint8_t numPasses = m_numMips - 1;
+	const uint8_t numPasses = numMips - 1;
 	for (auto i = 0ui8; i + 1 < numPasses; ++i)
 	{
 		const auto c = numPasses - i;
