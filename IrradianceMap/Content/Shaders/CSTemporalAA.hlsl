@@ -245,7 +245,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
 	blend = min(blend, 0.25);
 
 	HALF3 result = ITM(lerp(historyTM, filtered.xyz, blend));
-	result = any(isnan(result)) ? filtered.xyz : result;
+	result = any(isnan(result)) ? ITM(filtered.xyz) : result;
 	history.w = min(history.w / g_historyMax, 1.0 - curHistoryBlur);
 
 #ifdef _R11G11B10_
