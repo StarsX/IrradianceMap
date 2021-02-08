@@ -261,13 +261,13 @@ bool Renderer::createIB(CommandList* pCommandList, uint32_t numIndices,
 bool Renderer::createInputLayout()
 {
 	// Define the vertex input layout.
-	InputElementTable inputElementDescs =
+	const InputElement inputElements[] =
 	{
 		{ "POSITION",	0, Format::R32G32B32_FLOAT, 0, 0,								InputClassification::PER_VERTEX_DATA, 0 },
 		{ "NORMAL",		0, Format::R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT,	InputClassification::PER_VERTEX_DATA, 0 }
 	};
 
-	X_RETURN(m_inputLayout, m_graphicsPipelineCache->CreateInputLayout(inputElementDescs), false);
+	X_RETURN(m_pInputLayout, m_graphicsPipelineCache->CreateInputLayout(inputElements, static_cast<uint32_t>(size(inputElements))), false);
 
 	return true;
 }
@@ -349,7 +349,7 @@ bool Renderer::createPipelines(Format rtFormat)
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSBasePass.cso"), false);
 
 		const auto state = Graphics::State::MakeUnique();
-		state->IASetInputLayout(m_inputLayout);
+		state->IASetInputLayout(m_pInputLayout);
 		state->SetPipelineLayout(m_pipelineLayouts[BASE_PASS]);
 		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex));
 		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
@@ -366,7 +366,7 @@ bool Renderer::createPipelines(Format rtFormat)
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSBasePassSH.cso"), false);
 
 		const auto state = Graphics::State::MakeUnique();
-		state->IASetInputLayout(m_inputLayout);
+		state->IASetInputLayout(m_pInputLayout);
 		state->SetPipelineLayout(m_pipelineLayouts[BASE_PASS_SH]);
 		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex++));
 		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));

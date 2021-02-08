@@ -134,7 +134,7 @@ protected:
 	BasePassConstants	m_cbBasePass;
 	PerFrameConstants	m_cbPerFrame;
 
-	XUSG::InputLayout		m_inputLayout;
+	const XUSG::InputLayout* m_pInputLayout;
 	XUSG::PipelineLayout	m_pipelineLayouts[NUM_PIPELINE];
 	XUSG::Pipeline			m_pipelines[NUM_PIPELINE];
 
