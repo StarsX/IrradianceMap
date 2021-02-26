@@ -33,7 +33,9 @@ cbuffer cbPerFrame
 // Textures
 //--------------------------------------------------------------------------------------
 TextureCube<float3>	g_txRadiance	: register (t0);
+#ifndef SH_MAX_ORDER
 TextureCube<float3>	g_txIrradiance	: register (t1);
+#endif
 
 //--------------------------------------------------------------------------------------
 // Sampler
@@ -54,21 +56,14 @@ min16float Fresnel(min16float viewAmt, min16float specRef, uint expLevel = 2)
 	return lerp(fresnel, 1.0, specRef);
 }
 
-
-//--------------------------------------------------------------------------------------
-// Base geometry-buffer pass
-//--------------------------------------------------------------------------------------
-PSOut main(PSIn input)
+PSOut Shade(PSIn input, min16float3 norm, float3 irradiance)
 {
 	PSOut output;
 
-	const min16float3 norm = min16float3(normalize(input.Norm));
-	//float3 irradiance = g_txIrradiance.Sample(g_sampler, input.Norm);
-	float3 irradiance = g_txIrradiance.SampleLevel(g_sampler, input.Norm, 0.0);
-
 	const min16float3 viewDir = min16float3(normalize(g_eyePt - input.WSPos));
 	const min16float3 lightDir = reflect(-viewDir, norm);
-	float3 radiance = g_txRadiance.SampleLevel(g_sampler, lightDir, 0.0);
+	//float3 radiance = g_txRadiance.SampleBias(g_sampler, lightDir, 2.0);
+	float3 radiance = g_txRadiance.SampleLevel(g_sampler, lightDir, 2.0);
 
 	const float2 csPos = input.CSPos.xy / input.CSPos.w;
 	const float2 tsPos = input.TSPos.xy / input.TSPos.w;
@@ -93,11 +88,23 @@ PSOut main(PSIn input)
 	radiance *= 0.04 * ambient.x + ambient.y;
 #endif
 
-	//irradiance *= 1.3;
-	//irradiance = pow(abs(irradiance), clamp(1.0 / irradiance.x, 1.0, 1.85));
 	//output.Color = min16float4(norm * 0.5 + 0.5, 1.0);
 	output.Color = min16float4(irradiance + radiance * g_glossy, 1.0);
 	output.Velocity = min16float4(velocity, 0.0.xx);
 
 	return output;
 }
+
+//--------------------------------------------------------------------------------------
+// Base geometry-buffer pass
+//--------------------------------------------------------------------------------------
+#ifndef SH_MAX_ORDER
+PSOut main(PSIn input)
+{
+	const min16float3 norm = min16float3(normalize(input.Norm));
+	//float3 irradiance = g_txIrradiance.Sample(g_sampler, input.Norm);
+	float3 irradiance = g_txIrradiance.SampleLevel(g_sampler, input.Norm, 0.0);
+
+	return Shade(input, norm, irradiance);
+}
+#endif

@@ -25,7 +25,7 @@ public:
 		const DirectX::XMFLOAT4& posScale = DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f));
 	bool SetLightProbes(const XUSG::Descriptor& irradiance, const XUSG::Descriptor& radiance);
 	bool SetLightProbesGT(const XUSG::Descriptor& irradiance, const XUSG::Descriptor& radiance);
-	bool SetLightProbesSH(const XUSG::Descriptor& coeffSH);
+	bool SetLightProbesSH(const XUSG::StructuredBuffer::sptr& coeffSH);
 
 	void UpdateFrame(uint32_t frameIndex, DirectX::CXMVECTOR eyePt,
 		DirectX::CXMMATRIX viewProj, float glossy, bool isPaused);
@@ -41,7 +41,7 @@ protected:
 		SHADER_RESOURCES,
 		SAMPLER,
 		VS_CONSTANTS,
-		CBUFFER,
+		BUFFER,
 		PS_CONSTANTS = OUTPUT_VIEW,
 	};
 
@@ -138,7 +138,7 @@ protected:
 	XUSG::PipelineLayout	m_pipelineLayouts[NUM_PIPELINE];
 	XUSG::Pipeline			m_pipelines[NUM_PIPELINE];
 
-	XUSG::DescriptorTable	m_cbvTable;
+	XUSG::StructuredBuffer::sptr m_coeffSH;
 	XUSG::DescriptorTable	m_srvTables[NUM_SRV_TABLE];
 	XUSG::DescriptorTable	m_uavTables[NUM_UAV_TABLE];
 	XUSG::DescriptorTable	m_samplerTable;

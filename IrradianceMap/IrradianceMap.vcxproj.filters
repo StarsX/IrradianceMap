@@ -37,6 +37,12 @@
     <Filter Include="XUSG\Optional">
       <UniqueIdentifier>{91cfda93-cfa6-4ae9-a9f5-a280770eb7dd}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shaders\MipRadiance">
+      <UniqueIdentifier>{8a54c825-cbf4-4202-acbb-1d0a75b8165e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\SHMath">
+      <UniqueIdentifier>{8563cf6d-471d-4d1c-a13a-e2b1ac3913b6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Common\d3dx12.h">
@@ -110,16 +116,16 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Content\Shaders\CubeMap.hlsli">
-      <Filter>Shaders</Filter>
+      <Filter>Shaders\MipRadiance</Filter>
     </None>
     <None Include="Content\Shaders\MipCosine.hlsli">
-      <Filter>Shaders</Filter>
+      <Filter>Shaders\MipRadiance</Filter>
+    </None>
+    <None Include="Content\Shaders\SHMath.hlsli">
+      <Filter>Shaders\SHMath</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="Content\Shaders\CSResample.hlsl">
-      <Filter>Shaders</Filter>
-    </FxCompile>
     <FxCompile Include="Content\Shaders\CSTemporalAA.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
@@ -138,9 +144,6 @@
     <FxCompile Include="Content\Shaders\PSBasePassSH.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
-    <FxCompile Include="Content\Shaders\PSResample.hlsl">
-      <Filter>Shaders</Filter>
-    </FxCompile>
     <FxCompile Include="Content\Shaders\PSPostprocess.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
@@ -150,17 +153,32 @@
     <FxCompile Include="Content\Shaders\CSGenRadiance.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
-    <FxCompile Include="Content\Shaders\PSCosineUp.hlsl">
-      <Filter>Shaders</Filter>
+    <FxCompile Include="Content\Shaders\CSCosineUp.hlsl">
+      <Filter>Shaders\MipRadiance</Filter>
     </FxCompile>
     <FxCompile Include="Content\Shaders\CSCosUp_in_place.hlsl">
-      <Filter>Shaders</Filter>
+      <Filter>Shaders\MipRadiance</Filter>
+    </FxCompile>
+    <FxCompile Include="Content\Shaders\CSResample.hlsl">
+      <Filter>Shaders\MipRadiance</Filter>
+    </FxCompile>
+    <FxCompile Include="Content\Shaders\PSCosineUp.hlsl">
+      <Filter>Shaders\MipRadiance</Filter>
     </FxCompile>
     <FxCompile Include="Content\Shaders\PSCosUp_blend.hlsl">
-      <Filter>Shaders</Filter>
+      <Filter>Shaders\MipRadiance</Filter>
     </FxCompile>
-    <FxCompile Include="Content\Shaders\CSCosineUp.hlsl">
-      <Filter>Shaders</Filter>
+    <FxCompile Include="Content\Shaders\PSResample.hlsl">
+      <Filter>Shaders\MipRadiance</Filter>
+    </FxCompile>
+    <FxCompile Include="Content\Shaders\CSSHCubeMap.hlsl">
+      <Filter>Shaders\SHMath</Filter>
+    </FxCompile>
+    <FxCompile Include="Content\Shaders\CSSHNormalize.hlsl">
+      <Filter>Shaders\SHMath</Filter>
+    </FxCompile>
+    <FxCompile Include="Content\Shaders\CSSHSum.hlsl">
+      <Filter>Shaders\SHMath</Filter>
     </FxCompile>
   </ItemGroup>
 </Project>

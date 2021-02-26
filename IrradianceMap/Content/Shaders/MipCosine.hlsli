@@ -52,3 +52,14 @@ float MipCosineBlendWeight()
 	return wsum > 0.0 ? weight / wsum : 1.0;
 #endif
 }
+
+float3 LerpWithBias(float3 coarser, float3 src, float weight)
+{
+	float3 result = lerp(coarser, src, weight);
+
+	// Adjustment with bias
+	result *= 1.4;
+	result = pow(abs(result), clamp(1.0 / result.y, 1.0, 2.0));
+
+	return result;
+}

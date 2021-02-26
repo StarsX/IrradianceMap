@@ -87,11 +87,9 @@ bool Renderer::SetLightProbesGT(const Descriptor& irradiance, const Descriptor& 
 	return true;
 }
 
-bool Renderer::SetLightProbesSH(const Descriptor& coeffSH)
+bool Renderer::SetLightProbesSH(const StructuredBuffer::sptr& coeffSH)
 {
-	const auto descriptorTable = Util::DescriptorTable::MakeUnique();
-	descriptorTable->SetDescriptors(0, 1, &coeffSH);
-	X_RETURN(m_cbvTable, descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+	m_coeffSH = coeffSH;
 
 	return true;
 }
@@ -193,6 +191,7 @@ void Renderer::Render(const CommandList* pCommandList, uint32_t frameIndex, Reso
 	numBarriers = m_depth->SetBarrier(barriers, ResourceState::DEPTH_WRITE, numBarriers);
 	numBarriers = m_outputViews[UAV_PP_TAA + !m_frameParity]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE |
 		ResourceState::PIXEL_SHADER_RESOURCE, numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
+	if (mode == SH_APPROX) numBarriers = m_coeffSH->SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
 	render(pCommandList, mode, needClear);
 
@@ -292,10 +291,9 @@ bool Renderer::createPipelineLayouts()
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetConstants(VS_CONSTANTS, SizeOfInUint32(BasePassConstants), 0, 0, Shader::Stage::VS);
 		pipelineLayout->SetConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT4), 0, 0, Shader::Stage::PS);
-		pipelineLayout->SetRange(CBUFFER, DescriptorType::CBV, 1, 1);
-		pipelineLayout->SetShaderStage(CBUFFER, Shader::PS);
 		pipelineLayout->SetRange(SHADER_RESOURCES, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetShaderStage(SHADER_RESOURCES, Shader::PS);
+		pipelineLayout->SetRootSRV(BUFFER, 1, 0, DescriptorFlag::NONE, Shader::Stage::PS);
 		pipelineLayout->SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
 		pipelineLayout->SetShaderStage(SAMPLER, Shader::PS);
 		X_RETURN(m_pipelineLayouts[BASE_PASS_SH], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
@@ -508,7 +506,7 @@ void Renderer::render(const CommandList* pCommandList, RenderMode mode, bool nee
 	pCommandList->SetGraphics32BitConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT4), &m_cbPerFrame);
 	pCommandList->SetGraphicsDescriptorTable(SHADER_RESOURCES, m_srvTables[mode == GROUND_TRUTH ? SRV_TABLE_GT : SRV_TABLE_BASE]);
 	pCommandList->SetGraphicsDescriptorTable(SAMPLER, m_samplerTable);
-	if (mode == SH_APPROX) pCommandList->SetGraphicsDescriptorTable(CBUFFER, m_cbvTable);
+	if (mode == SH_APPROX) pCommandList->SetGraphicsRootShaderResourceView(BUFFER, m_coeffSH->GetResource());
 
 	pCommandList->IASetVertexBuffers(0, 1, &m_vertexBuffer->GetVBV());
 	pCommandList->IASetIndexBuffer(m_indexBuffer->GetIBV());

@@ -186,22 +186,11 @@ void IrradianceMap::LoadAssets()
 	if (!m_renderer->SetLightProbes(m_lightProbe->GetIrradiance().GetSRV(), m_lightProbe->GetRadiance().GetSRV()))
 		ThrowIfFailed(E_FAIL);
 
-	switch (g_renderMode)
-	{
-	case Renderer::SH_APPROX:
-	{
-		const auto cbvSH = m_lightProbe->GetSH(m_commandList.get(), L"", &uploaders);
-		if (!m_renderer->SetLightProbesSH(cbvSH))
-			ThrowIfFailed(E_FAIL);
-		break;
-	}
-	case Renderer::GROUND_TRUTH:
+	if (g_renderMode == Renderer::GROUND_TRUTH)
 	{
 		const auto pIrradianctGT = m_lightProbe->GetIrradianceGT(m_commandList.get(), (m_envFileNames[0] + L"_gt.dds").c_str(), &uploaders);
 		if (!m_renderer->SetLightProbesGT(pIrradianctGT->GetSRV(), m_lightProbe->GetRadiance().GetSRV()))
 			ThrowIfFailed(E_FAIL);
-		break;
-	}
 	}
 	
 	// Close the command list and execute it to begin the initial GPU setup.
@@ -391,13 +380,6 @@ void IrradianceMap::ParseCommandLineArgs(wchar_t* argv[], int argc)
 			for (auto j = i + 1; j < argc; ++j)
 				m_envFileNames.emplace_back(argv[j]);
 		}
-		else if (_wcsnicmp(argv[i], L"-sh", wcslen(argv[i])) == 0 ||
-			_wcsnicmp(argv[i], L"/sh", wcslen(argv[i])) == 0)
-		{
-			m_envFileNames.clear();
-			if (i + 1 < argc) m_envFileNames.emplace_back(argv[i + 1]);
-			g_renderMode = Renderer::SH_APPROX;
-		}
 		else if (_wcsnicmp(argv[i], L"-gt", wcslen(argv[i])) == 0 ||
 			_wcsnicmp(argv[i], L"/gt", wcslen(argv[i])) == 0)
 		{
@@ -425,13 +407,16 @@ void IrradianceMap::PopulateCommandList()
 	const auto dstState = ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE;
 	m_lightProbe->Process(pCommandList, dstState, m_pipelineType);	// V-cycle
 
+	const auto renderMode = m_pipelineType == LightProbe::SH && g_renderMode != Renderer::GROUND_TRUTH ? Renderer::SH_APPROX : g_renderMode;
+	if (renderMode == Renderer::SH_APPROX) m_renderer->SetLightProbesSH(m_lightProbe->GetSH());
+
 	ResourceBarrier barriers[11];
 	auto numBarriers = 0u;
 	for (auto i = 0ui8; i < 6; ++i)
 		numBarriers = m_lightProbe->GetIrradiance().SetBarrier(barriers, 0, dstState, numBarriers, i);
 	numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::RENDER_TARGET,
 		numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
-	m_renderer->Render(pCommandList, m_frameIndex, barriers, numBarriers, g_renderMode);
+	m_renderer->Render(pCommandList, m_frameIndex, barriers, numBarriers, renderMode);
 
 	numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::RENDER_TARGET,
 		0, BARRIER_ALL_SUBRESOURCES, BarrierFlag::END_ONLY);
@@ -510,6 +495,9 @@ double IrradianceMap::CalculateFrameStats(float* pTimeStep)
 			break;
 		case LightProbe::COMPUTE:
 			windowText << L"Pure compute pipelines";
+			break;
+		case LightProbe::SH:
+			windowText << L"Spherical harmonics";
 			break;
 		default:
 			windowText << L"Hybrid pipelines (mip-gen by compute and up-sampling by graphics)";

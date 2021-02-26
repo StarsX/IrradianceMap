@@ -15,6 +15,7 @@ public:
 		HYBRID,
 		GRAPHICS,
 		COMPUTE,
+		SH,
 
 		NUM_PIPE_TYPE
 	};
@@ -34,8 +35,7 @@ public:
 		const wchar_t* fileName = nullptr, std::vector<XUSG::Resource>* pUploaders = nullptr);
 	XUSG::Texture2D& GetIrradiance();
 	XUSG::Texture2D& GetRadiance();
-	XUSG::Descriptor GetSH(XUSG::CommandList* pCommandList, const wchar_t* fileName = nullptr,
-		std::vector<XUSG::Resource>* pUploaders = nullptr);
+	XUSG::StructuredBuffer::sptr GetSH() const;
 
 protected:
 	enum PipelineIndex : uint8_t
@@ -48,6 +48,9 @@ protected:
 		UP_SAMPLE_INPLACE,
 		FINAL_G,
 		FINAL_C,
+		SH_CUBE_MAP,
+		SH_SUM,
+		SH_NORMALIZE,
 
 		NUM_PIPELINE
 	};
@@ -72,6 +75,9 @@ protected:
 	void upsampleCompute(const XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers, uint32_t numBarriers);
 	void generateRadianceGraphics(const XUSG::CommandList* pCommandList);
 	void generateRadianceCompute(const XUSG::CommandList* pCommandList);
+	void shCubeMap(const XUSG::CommandList* pCommandList, uint8_t order);
+	void shSum(const XUSG::CommandList* pCommandList, uint8_t order);
+	void shNormalize(const XUSG::CommandList* pCommandList, uint8_t order);
 	
 	XUSG::Device m_device;
 
@@ -86,15 +92,19 @@ protected:
 
 	std::vector<XUSG::DescriptorTable> m_srvTables[NUM_UAV_SRV];
 	std::vector<XUSG::DescriptorTable> m_uavTables[NUM_UAV_SRV];
+	XUSG::DescriptorTable	m_srvTable;
 	XUSG::DescriptorTable	m_samplerTable;
 
 	XUSG::ResourceBase::sptr m_groundTruth;
 	std::vector<XUSG::ResourceBase::sptr> m_sources;
-	XUSG::RenderTarget::uptr	m_radiance;
 	XUSG::RenderTarget::uptr	m_irradiance;
+	XUSG::RenderTarget::uptr	m_radiance;
 
-	XUSG::ConstantBuffer::uptr	m_cbCoeffSH;
+	XUSG::StructuredBuffer::sptr m_coeffSH[2];
+	XUSG::StructuredBuffer::uptr m_weightSH[2];
 
 	float					m_mapSize;
 	double					m_time;
+	uint32_t				m_numPixels;
+	uint8_t					m_shBufferParity;
 };

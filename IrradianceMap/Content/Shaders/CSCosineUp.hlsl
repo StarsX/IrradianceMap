@@ -31,5 +31,5 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	// Cosine-approximating Haar coefficients (weights of box filters)
 	const float weight = MipCosineBlendWeight();
 
-	g_rwDest[DTid] = lerp(coarser, src, weight);
+	g_rwDest[DTid] = LerpWithBias(coarser, src, weight);
 }

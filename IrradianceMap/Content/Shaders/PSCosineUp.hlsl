@@ -38,5 +38,5 @@ float3 main(PSIn input) : SV_TARGET
 	// Cosine-approximating Haar coefficients (weights of box filters)
 	const float weight = MipCosineBlendWeight();
 
-	return lerp(coarser, src, weight);
+	return LerpWithBias(coarser, src, weight);
 }
