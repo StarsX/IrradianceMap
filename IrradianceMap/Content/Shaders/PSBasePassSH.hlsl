@@ -28,7 +28,7 @@ float3 EvaluateSHIrradiance(float3 norm)
 
 	const float3 irradiance = max(0.0,
 		(c1 * (x * x - y * y)) * g_roSHBuff[8]													// c1.L22.(x²-y²)
-		+ (c3 * (3.0 * z * z - 1)) * g_roSHBuff[6]												// c3.L20.(3.z² - 1)
+		+ (c3 * (3.0 * z * z - 1.0)) * g_roSHBuff[6]											// c3.L20.(3.z² - 1)
 		+ c4 * g_roSHBuff[0]																	// c4.L00 
 		+ 2.0 * c1 * (g_roSHBuff[4] * x * y + g_roSHBuff[7] * x * z + g_roSHBuff[5] * y * z)	// 2.c1.(L2-2.xy + L21.xz + L2-1.yz)
 		+ 2.0 * c2 * (g_roSHBuff[3] * x + g_roSHBuff[1] * y + g_roSHBuff[2] * z));				// 2.c2.(L11.x + L1-1.y + L10.z)
