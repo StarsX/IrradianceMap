@@ -42,9 +42,9 @@ float3 GetCubeTexcoord(uint3 index, RWTexture2DArray<float3> cubeMap)
 	return GetCubeTexcoord(index, texSize);
 }
 
-float3 GetCubeTexcoord(uint slice, float2 tex)
+float3 GetCubeTexcoord(uint slice, float2 uv)
 {
-	float2 xy = tex * 2.0 - 1.0;
+	float2 xy = uv * 2.0 - 1.0;
 	xy.y = -xy.y;
 
 	const float3 pos = { xy, 1.0 };

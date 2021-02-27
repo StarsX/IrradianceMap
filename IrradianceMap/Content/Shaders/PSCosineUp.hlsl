@@ -11,7 +11,7 @@
 struct PSIn
 {
 	float4 Pos : SV_POSITION;
-	float2 Tex : TEXCOORD;
+	float2 UV : TEXCOORD;
 };
 
 //--------------------------------------------------------------------------------------
@@ -31,9 +31,9 @@ SamplerState		g_smpLinear;
 float3 main(PSIn input) : SV_TARGET
 {
 	// Fetch the color of the current level and the resolved color at the coarser level
-	const float3 tex = GetCubeTexcoord(g_slice, input.Tex);
-	const float3 coarser = g_txCoarser.SampleLevel(g_smpLinear, tex, 0.0);
-	const float3 src = g_txSource.SampleLevel(g_smpLinear, tex, 0.0);
+	const float3 dir = GetCubeTexcoord(g_slice, input.UV);
+	const float3 coarser = g_txCoarser.SampleLevel(g_smpLinear, dir, 0.0);
+	const float3 src = g_txSource.SampleLevel(g_smpLinear, dir, 0.0);
 
 	// Cosine-approximating Haar coefficients (weights of box filters)
 	const float weight = MipCosineBlendWeight();

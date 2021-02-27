@@ -115,14 +115,14 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Content\Shaders\CubeMap.hlsli">
-      <Filter>Shaders\MipRadiance</Filter>
-    </None>
     <None Include="Content\Shaders\MipCosine.hlsli">
       <Filter>Shaders\MipRadiance</Filter>
     </None>
     <None Include="Content\Shaders\SHMath.hlsli">
       <Filter>Shaders\SHMath</Filter>
+    </None>
+    <None Include="Content\Shaders\CubeMap.hlsli">
+      <Filter>Shaders</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
