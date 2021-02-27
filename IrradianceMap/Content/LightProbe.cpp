@@ -8,7 +8,8 @@
 #undef _INDEPENDENT_DDS_LOADER_
 
 #define SH_MAX_ORDER	6
-#define GROUP_SIZE		32
+#define SH_TEX_SIZE		256
+#define SH_GROUP_SIZE	32
 
 using namespace std;
 using namespace DirectX;
@@ -74,24 +75,25 @@ bool LightProbe::Init(CommandList* pCommandList, uint32_t width, uint32_t height
 	m_radiance = RenderTarget::MakeUnique();
 	m_radiance->Create(m_device, texWidth, texHeight, format,
 		6, ResourceFlag::ALLOW_UNORDERED_ACCESS,
-		1, 1, nullptr, false, L"Radiance");
+		1, 1, nullptr, true, L"Radiance");
 
-	m_numPixels = texWidth * texHeight * 6;
-	const auto maxElements = SH_MAX_ORDER * SH_MAX_ORDER * m_numPixels;
+	m_numSHTexels = SH_TEX_SIZE * SH_TEX_SIZE * 6;
+	const auto numGroups = DIV_UP(m_numSHTexels, SH_GROUP_SIZE);
+	const auto maxElements = SH_MAX_ORDER * SH_MAX_ORDER * numGroups;
 	m_coeffSH[0] = StructuredBuffer::MakeShared();
 	m_coeffSH[0]->Create(m_device, maxElements, sizeof(float[3]),
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, MemoryType::DEFAULT,
 		1, nullptr, 1, nullptr, L"SHCoefficients0");
 	m_coeffSH[1] = StructuredBuffer::MakeShared();
-	m_coeffSH[1]->Create(m_device, DIV_UP(maxElements, GROUP_SIZE), sizeof(float[3]),
+	m_coeffSH[1]->Create(m_device, DIV_UP(maxElements, SH_GROUP_SIZE), sizeof(float[3]),
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, MemoryType::DEFAULT,
 		1, nullptr, 1, nullptr, L"SHCoefficients1");
 	m_weightSH[0] = StructuredBuffer::MakeUnique();
-	m_weightSH[0]->Create(m_device, m_numPixels, sizeof(float),
+	m_weightSH[0]->Create(m_device, numGroups, sizeof(float),
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, MemoryType::DEFAULT,
 		1, nullptr, 1, nullptr, L"SHWeights0");
 	m_weightSH[1] = StructuredBuffer::MakeUnique();
-	m_weightSH[1]->Create(m_device, DIV_UP(m_numPixels, GROUP_SIZE), sizeof(float),
+	m_weightSH[1]->Create(m_device, DIV_UP(numGroups, SH_GROUP_SIZE), sizeof(float),
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, MemoryType::DEFAULT,
 		1, nullptr, 1, nullptr, L"SHWeights1");
 
@@ -286,10 +288,11 @@ bool LightProbe::createPipelineLayouts()
 	// SH cube map transform
 	{
 		const auto utilPipelineLayout = Util::PipelineLayout::MakeUnique();
-		utilPipelineLayout->SetRootUAV(0, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
-		utilPipelineLayout->SetRootUAV(1, 1, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
-		utilPipelineLayout->SetRange(2, DescriptorType::SRV, 1, 0);
-		utilPipelineLayout->SetConstants(3, SizeOfInUint32(uint32_t), 0);
+		utilPipelineLayout->SetRange(0, DescriptorType::SAMPLER, 1, 0);
+		utilPipelineLayout->SetRootUAV(1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
+		utilPipelineLayout->SetRootUAV(2, 1, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
+		utilPipelineLayout->SetRange(3, DescriptorType::SRV, 1, 0);
+		utilPipelineLayout->SetConstants(4, SizeOfInUint32(uint32_t[2]), 0);
 		X_RETURN(m_pipelineLayouts[SH_CUBE_MAP], utilPipelineLayout->GetPipelineLayout(
 			*m_pipelineLayoutCache, PipelineLayoutFlag::NONE, L"SHCubeMapLayout"), false);
 	}
@@ -503,16 +506,6 @@ bool LightProbe::createDescriptorTables()
 		X_RETURN(m_uavTables[TABLE_RESAMPLE][i], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
 	}
 
-	// Get SRVs for SH
-	{
-		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
-		descriptorTable->SetDescriptors(0, 1, &m_radiance->GetSRV());
-		X_RETURN(m_srvTable, descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
-
-		// Change to cube map SRV
-		m_radiance->CreateSRVs(m_radiance->GetArraySize(), m_radiance->GetFormat(), 1, 1, true);
-	}
-
 	// Get SRVs for resampling
 	m_srvTables[TABLE_RESAMPLE].resize(numMips);
 	for (auto i = 0ui8; i < numMips; ++i)
@@ -673,13 +666,15 @@ void LightProbe::shCubeMap(const CommandList* pCommandList, uint8_t order)
 	pCommandList->Barrier(numBarriers, &barrier);
 
 	pCommandList->SetComputePipelineLayout(m_pipelineLayouts[SH_CUBE_MAP]);
-	pCommandList->SetComputeRootUnorderedAccessView(0, m_coeffSH[0]->GetResource());
-	pCommandList->SetComputeRootUnorderedAccessView(1, m_weightSH[0]->GetResource());
-	pCommandList->SetComputeDescriptorTable(2, m_srvTable);
-	pCommandList->SetCompute32BitConstant(3, order);
+	pCommandList->SetComputeDescriptorTable(0, m_samplerTable);
+	pCommandList->SetComputeRootUnorderedAccessView(1, m_coeffSH[0]->GetResource());
+	pCommandList->SetComputeRootUnorderedAccessView(2, m_weightSH[0]->GetResource());
+	pCommandList->SetComputeDescriptorTable(3, m_srvTables[TABLE_RESAMPLE][0]);
+	pCommandList->SetCompute32BitConstant(4, order);
+	pCommandList->SetCompute32BitConstant(4, SH_TEX_SIZE, SizeOfInUint32(order));
 	pCommandList->SetPipelineState(m_pipelines[SH_CUBE_MAP]);
 
-	pCommandList->Dispatch(DIV_UP(m_radiance->GetWidth(), 8), DIV_UP(m_radiance->GetHeight(), 8), 6);
+	pCommandList->Dispatch(DIV_UP(m_numSHTexels, SH_GROUP_SIZE), 1, 1);
 }
 
 void LightProbe::shSum(const CommandList* pCommandList, uint8_t order)
@@ -688,7 +683,7 @@ void LightProbe::shSum(const CommandList* pCommandList, uint8_t order)
 	ResourceBarrier barriers[4];
 	m_shBufferParity = 0ui8;
 
-	for (auto n = m_numPixels; n > 1; n = DIV_UP(n, GROUP_SIZE))
+	for (auto n = DIV_UP(m_numSHTexels, SH_GROUP_SIZE); n > 1; n = DIV_UP(n, SH_GROUP_SIZE))
 	{
 		const auto& src = m_shBufferParity;
 		const uint8_t dst = !m_shBufferParity;
@@ -707,7 +702,7 @@ void LightProbe::shSum(const CommandList* pCommandList, uint8_t order)
 		pCommandList->SetCompute32BitConstant(4, n, SizeOfInUint32(order));
 		pCommandList->SetPipelineState(m_pipelines[SH_SUM]);
 
-		pCommandList->Dispatch(DIV_UP(n, GROUP_SIZE), order * order, 1);
+		pCommandList->Dispatch(DIV_UP(n, SH_GROUP_SIZE), order * order, 1);
 		m_shBufferParity = !m_shBufferParity;
 	}
 }
@@ -730,6 +725,6 @@ void LightProbe::shNormalize(const CommandList* pCommandList, uint8_t order)
 	pCommandList->SetPipelineState(m_pipelines[SH_NORMALIZE]);
 
 	const auto numElements = order * order;
-	pCommandList->Dispatch(DIV_UP(numElements, GROUP_SIZE), 1, 1);
+	pCommandList->Dispatch(DIV_UP(numElements, SH_GROUP_SIZE), 1, 1);
 	m_shBufferParity = !m_shBufferParity;
 }

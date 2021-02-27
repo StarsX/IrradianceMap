@@ -249,7 +249,7 @@ void SHScale(out float3 result[SH_MAX_COEFF], uint order,
 		result[i] = scale * input[i];
 }
 
-// index.x - pixelIdx, index.y - SH coefficient index
+// index.x - pixelIdx or groupId, index.y - SH coefficient index
 uint GetLocation(uint numCoeff, uint2 index)
 {
 	return dot(index, uint2(numCoeff, 1));

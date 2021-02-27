@@ -92,7 +92,6 @@ protected:
 
 	std::vector<XUSG::DescriptorTable> m_srvTables[NUM_UAV_SRV];
 	std::vector<XUSG::DescriptorTable> m_uavTables[NUM_UAV_SRV];
-	XUSG::DescriptorTable	m_srvTable;
 	XUSG::DescriptorTable	m_samplerTable;
 
 	XUSG::ResourceBase::sptr m_groundTruth;
@@ -105,6 +104,6 @@ protected:
 
 	float					m_mapSize;
 	double					m_time;
-	uint32_t				m_numPixels;
+	uint32_t				m_numSHTexels;
 	uint8_t					m_shBufferParity;
 };

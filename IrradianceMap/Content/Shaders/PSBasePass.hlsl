@@ -62,8 +62,7 @@ PSOut Shade(PSIn input, min16float3 norm, float3 irradiance)
 
 	const min16float3 viewDir = min16float3(normalize(g_eyePt - input.WSPos));
 	const min16float3 lightDir = reflect(-viewDir, norm);
-	//float3 radiance = g_txRadiance.SampleBias(g_sampler, lightDir, 2.0);
-	float3 radiance = g_txRadiance.SampleLevel(g_sampler, lightDir, 2.0);
+	float3 radiance = g_txRadiance.SampleBias(g_sampler, lightDir, 2.0);
 
 	const float2 csPos = input.CSPos.xy / input.CSPos.w;
 	const float2 tsPos = input.TSPos.xy / input.TSPos.w;
