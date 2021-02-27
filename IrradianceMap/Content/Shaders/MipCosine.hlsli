@@ -58,8 +58,9 @@ float3 LerpWithBias(float3 coarser, float3 src, float weight)
 	float3 result = lerp(coarser, src, weight);
 
 	// Adjustment with bias
-	result *= 1.4;
-	result = pow(abs(result), clamp(1.0 / result.y, 1.0, 2.0));
+	result *= 1.3;
+	const float r = dot(result, 1.0 / 3.0);
+	result = pow(abs(result), clamp(1.0 / r, 1.0, 1.85));
 
 	return result;
 }

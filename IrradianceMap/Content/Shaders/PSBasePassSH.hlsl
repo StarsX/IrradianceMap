@@ -22,7 +22,7 @@ float3 EvaluateSHIrradiance(float3 norm)
 	const float c3 = 0.24770795610037568833406429782001;	// A2.Y20 = 1/16 * sqrt(5.PI)
 	const float c4 = 0.88622692545275801364908374167057;	// A0.Y00 = 1/2 * sqrt(PI)
 
-	const float x = norm.x;
+	const float x = -norm.x;
 	const float y = -norm.y;
 	const float z = norm.z;
 
