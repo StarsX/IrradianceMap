@@ -30,15 +30,14 @@ void main(uint2 DTid : SV_DispatchThreadID, uint Gid : SV_GroupID)
 	if (DTid.x < g_pixelCount)
 	{
 		float3 sh = g_roSHBuff[GetLocation(n, DTid)];
-		float wt = g_roWeight[DTid.x];
-
 		sh = WaveActiveSum(sh);
-		wt = WaveActiveSum(wt);
+		if (WaveIsFirstLane()) g_rwSHBuff[GetLocation(n, uint2(Gid, DTid.y))] = sh;
 
-		if (WaveIsFirstLane())
+		if (DTid.y == 0)
 		{
-			g_rwSHBuff[GetLocation(n, uint2(Gid, DTid.y))] = sh;
-			g_rwWeight[Gid] = wt;
+			float wt = g_roWeight[DTid.x];
+			wt = WaveActiveSum(wt);
+			if (WaveIsFirstLane()) g_rwWeight[Gid] = wt;
 		}
 	}
 }

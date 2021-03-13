@@ -404,13 +404,13 @@ void IrradianceMap::PopulateCommandList()
 	ThrowIfFailed(pCommandList->Reset(m_commandAllocators[m_frameIndex], nullptr));
 
 	// Record commands.
-	const auto dstState = ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE;
-	m_lightProbe->Process(pCommandList, dstState, m_pipelineType);	// V-cycle
+	m_lightProbe->Process(pCommandList, m_pipelineType);	// V-cycle
 
 	const auto renderMode = m_pipelineType == LightProbe::SH && g_renderMode != Renderer::GROUND_TRUTH ? Renderer::SH_APPROX : g_renderMode;
 	if (renderMode == Renderer::SH_APPROX) m_renderer->SetLightProbesSH(m_lightProbe->GetSH());
 
 	ResourceBarrier barriers[11];
+	const auto dstState = ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE;
 	auto numBarriers = 0u;
 	for (auto i = 0ui8; i < 6; ++i)
 		numBarriers = m_lightProbe->GetIrradiance().SetBarrier(barriers, 0, dstState, numBarriers, i);

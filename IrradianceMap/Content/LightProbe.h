@@ -29,7 +29,7 @@ public:
 		uint32_t numFiles, bool typedUAV);
 
 	void UpdateFrame(double time);
-	void Process(const XUSG::CommandList* pCommandList, XUSG::ResourceState dstState, PipelineType pipelineType);
+	void Process(const XUSG::CommandList* pCommandList, PipelineType pipelineType);
 
 	XUSG::ResourceBase* GetIrradianceGT(XUSG::CommandList* pCommandList,
 		const wchar_t* fileName = nullptr, std::vector<XUSG::Resource>* pUploaders = nullptr);
@@ -68,8 +68,7 @@ protected:
 	bool createDescriptorTables();
 
 	uint32_t generateMipsGraphics(const XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers);
-	uint32_t generateMipsCompute(const XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers,
-		XUSG::ResourceState addState = XUSG::ResourceState::COMMON);
+	uint32_t generateMipsCompute(const XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers);
 
 	void upsampleGraphics(const XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers, uint32_t numBarriers);
 	void upsampleCompute(const XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers, uint32_t numBarriers);

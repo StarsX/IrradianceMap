@@ -79,13 +79,15 @@ bool LightProbe::Init(CommandList* pCommandList, uint32_t width, uint32_t height
 
 	m_numSHTexels = SH_TEX_SIZE * SH_TEX_SIZE * 6;
 	const auto numGroups = DIV_UP(m_numSHTexels, SH_GROUP_SIZE);
+	const auto numSumGroups = DIV_UP(numGroups, SH_GROUP_SIZE);
 	const auto maxElements = SH_MAX_ORDER * SH_MAX_ORDER * numGroups;
+	const auto maxSumElements = SH_MAX_ORDER * SH_MAX_ORDER * numSumGroups;
 	m_coeffSH[0] = StructuredBuffer::MakeShared();
 	m_coeffSH[0]->Create(m_device, maxElements, sizeof(float[3]),
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, MemoryType::DEFAULT,
 		1, nullptr, 1, nullptr, L"SHCoefficients0");
 	m_coeffSH[1] = StructuredBuffer::MakeShared();
-	m_coeffSH[1]->Create(m_device, DIV_UP(maxElements, SH_GROUP_SIZE), sizeof(float[3]),
+	m_coeffSH[1]->Create(m_device, maxSumElements, sizeof(float[3]),
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, MemoryType::DEFAULT,
 		1, nullptr, 1, nullptr, L"SHCoefficients1");
 	m_weightSH[0] = StructuredBuffer::MakeUnique();
@@ -93,7 +95,7 @@ bool LightProbe::Init(CommandList* pCommandList, uint32_t width, uint32_t height
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, MemoryType::DEFAULT,
 		1, nullptr, 1, nullptr, L"SHWeights0");
 	m_weightSH[1] = StructuredBuffer::MakeUnique();
-	m_weightSH[1]->Create(m_device, DIV_UP(numGroups, SH_GROUP_SIZE), sizeof(float),
+	m_weightSH[1]->Create(m_device, numSumGroups, sizeof(float),
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, MemoryType::DEFAULT,
 		1, nullptr, 1, nullptr, L"SHWeights1");
 
@@ -109,7 +111,7 @@ void LightProbe::UpdateFrame(double time)
 	m_time = time;
 }
 
-void LightProbe::Process(const CommandList* pCommandList, ResourceState dstState, PipelineType pipelineType)
+void LightProbe::Process(const CommandList* pCommandList, PipelineType pipelineType)
 {
 	// Set Descriptor pools
 	const DescriptorPool descriptorPools[] =
@@ -133,7 +135,7 @@ void LightProbe::Process(const CommandList* pCommandList, ResourceState dstState
 		if (m_pipelines[UP_SAMPLE_INPLACE])
 		{
 			generateRadianceCompute(pCommandList);
-			numBarriers = generateMipsCompute(pCommandList, barriers, ResourceState::PIXEL_SHADER_RESOURCE);
+			numBarriers = generateMipsCompute(pCommandList, barriers);
 			upsampleCompute(pCommandList, barriers, numBarriers);
 			break;
 		}
@@ -148,11 +150,8 @@ void LightProbe::Process(const CommandList* pCommandList, ResourceState dstState
 	}
 	default:
 		generateRadianceCompute(pCommandList);
-		numBarriers = generateMipsCompute(pCommandList, barriers, ResourceState::PIXEL_SHADER_RESOURCE) - 6;
-		for (auto i = 0ui8; i < 6; ++i)
-			numBarriers = m_irradiance->SetBarrier(barriers, m_irradiance->GetNumMips() - 1,
-				ResourceState::UNORDERED_ACCESS, numBarriers, i);
-		upsampleGraphics(pCommandList, barriers, numBarriers - 6);
+		numBarriers = generateMipsCompute(pCommandList, barriers);
+		upsampleGraphics(pCommandList, barriers, numBarriers);
 	}
 }
 
@@ -529,14 +528,24 @@ uint32_t LightProbe::generateMipsGraphics(const CommandList* pCommandList, Resou
 		1, m_samplerTable, 0, numBarriers);
 }
 
-uint32_t LightProbe::generateMipsCompute(const CommandList* pCommandList, ResourceBarrier* pBarriers,
-	ResourceState addState)
+uint32_t LightProbe::generateMipsCompute(const CommandList* pCommandList, ResourceBarrier* pBarriers)
 {
-	const auto numBarriers = m_radiance->SetBarrier(pBarriers, ResourceState::NON_PIXEL_SHADER_RESOURCE | addState);
-	return m_irradiance->AsTexture2D()->GenerateMips(pCommandList, pBarriers, 8, 8, 1,
+	auto numBarriers = m_radiance->SetBarrier(pBarriers,
+		ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE);
+	numBarriers = m_irradiance->AsTexture2D()->GenerateMips(pCommandList, pBarriers, 8, 8, 1,
 		ResourceState::NON_PIXEL_SHADER_RESOURCE, m_pipelineLayouts[RESAMPLE_COMPUTE],
 		m_pipelines[RESAMPLE_COMPUTE], &m_uavTables[TABLE_RESAMPLE][1], 1, m_samplerTable,
 		0, numBarriers, &m_srvTables[TABLE_RESAMPLE][0], 2);
+
+	// Handle inconsistent biarrier states
+	assert(numBarriers >= 6);
+	numBarriers -= 6;
+	for (auto i = 0ui8; i < 6; ++i)
+		// Adjust the state record only
+		m_irradiance->SetBarrier(pBarriers, m_irradiance->GetNumMips() - 1,
+			ResourceState::UNORDERED_ACCESS, numBarriers, i);
+
+	return numBarriers;
 }
 
 void LightProbe::upsampleGraphics(const CommandList* pCommandList, ResourceBarrier* pBarriers, uint32_t numBarriers)
@@ -594,7 +603,7 @@ void LightProbe::upsampleCompute(const CommandList* pCommandList, ResourceBarrie
 		const auto level = c - 1;
 		pCommandList->SetCompute32BitConstant(3, level, SizeOfInUint32(cb.Imm));
 		numBarriers = m_irradiance->AsTexture2D()->Blit(pCommandList, pBarriers, 8, 8, 1, level, c,
-			ResourceState::NON_PIXEL_SHADER_RESOURCE,
+			ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE,
 			m_uavTables[TABLE_RESAMPLE][level], 1, numBarriers,
 			m_srvTables[TABLE_RESAMPLE][c], 2);
 	}
@@ -655,8 +664,8 @@ void LightProbe::shCubeMap(const CommandList* pCommandList, uint8_t order)
 {
 	assert(order <= SH_MAX_ORDER);
 	ResourceBarrier barrier;
-	m_coeffSH[0]->SetBarrier(&barrier, ResourceState::UNORDERED_ACCESS);
-	m_weightSH[0]->SetBarrier(&barrier, ResourceState::UNORDERED_ACCESS);
+	m_coeffSH[0]->SetBarrier(&barrier, ResourceState::UNORDERED_ACCESS);	// Promotion
+	m_weightSH[0]->SetBarrier(&barrier, ResourceState::UNORDERED_ACCESS);	// Promotion
 	const auto numBarriers = m_radiance->SetBarrier(&barrier,
 		ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE);
 	pCommandList->Barrier(numBarriers, &barrier);
@@ -679,6 +688,14 @@ void LightProbe::shSum(const CommandList* pCommandList, uint8_t order)
 	ResourceBarrier barriers[4];
 	m_shBufferParity = 0ui8;
 
+	pCommandList->SetComputePipelineLayout(m_pipelineLayouts[SH_SUM]);
+	pCommandList->SetCompute32BitConstant(4, order);
+	pCommandList->SetPipelineState(m_pipelines[SH_SUM]);
+
+	// Promotions
+	m_coeffSH[1]->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS);
+	m_weightSH[1]->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS);
+
 	for (auto n = DIV_UP(m_numSHTexels, SH_GROUP_SIZE); n > 1; n = DIV_UP(n, SH_GROUP_SIZE))
 	{
 		const auto& src = m_shBufferParity;
@@ -689,14 +706,11 @@ void LightProbe::shSum(const CommandList* pCommandList, uint8_t order)
 		numBarriers = m_weightSH[src]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
 		pCommandList->Barrier(numBarriers, barriers);
 
-		pCommandList->SetComputePipelineLayout(m_pipelineLayouts[SH_SUM]);
 		pCommandList->SetComputeRootUnorderedAccessView(0, m_coeffSH[dst]->GetResource());
 		pCommandList->SetComputeRootUnorderedAccessView(1, m_weightSH[dst]->GetResource());
 		pCommandList->SetComputeRootShaderResourceView(2, m_coeffSH[src]->GetResource());
 		pCommandList->SetComputeRootShaderResourceView(3, m_weightSH[src]->GetResource());
-		pCommandList->SetCompute32BitConstant(4, order);
 		pCommandList->SetCompute32BitConstant(4, n, SizeOfInUint32(order));
-		pCommandList->SetPipelineState(m_pipelines[SH_SUM]);
 
 		pCommandList->Dispatch(DIV_UP(n, SH_GROUP_SIZE), order * order, 1);
 		m_shBufferParity = !m_shBufferParity;

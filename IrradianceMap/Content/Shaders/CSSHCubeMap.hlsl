@@ -13,7 +13,7 @@ cbuffer cb
 
 TextureCube<float3> g_txCubeMap;
 RWStructuredBuffer<float3> g_rwSHBuff;
-RWStructuredBuffer<float> g_rwDiffSolid;
+RWStructuredBuffer<float> g_rwWeight;
 
 SamplerState g_sampler;
 
@@ -44,7 +44,7 @@ void main(uint DTid : SV_DispatchThreadID, uint Gid : SV_GroupID)
 	const float diff = 1.0 + dot(uv, uv);
 	const float diffSolid = 4.0 / (diff * sqrt(diff));
 	const float wt = WaveActiveSum(diffSolid);
-	if (WaveIsFirstLane()) g_rwDiffSolid[Gid] = wt;
+	if (WaveIsFirstLane()) g_rwWeight[Gid] = wt;
 
 	float shBuff[SH_MAX_COEFF];
 	float3 shBuffB[SH_MAX_COEFF];
