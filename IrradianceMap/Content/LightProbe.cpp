@@ -63,7 +63,7 @@ bool LightProbe::Init(CommandList* pCommandList, uint32_t width, uint32_t height
 	}
 
 	// Create resources and pipelines
-	const auto numMips = (max)(Log2((max)(texWidth, texHeight)), 1ui8) + 1u;
+	const uint8_t numMips = max<uint8_t>(Log2((max)(texWidth, texHeight)), 1) + 1;
 	m_mapSize = (texWidth + texHeight) * 0.5f;
 
 	const auto format = Format::R11G11B10_FLOAT;
@@ -141,7 +141,7 @@ void LightProbe::Process(const CommandList* pCommandList, PipelineType pipelineT
 		}
 	case SH:
 	{
-		const auto order = 3ui8;
+		const uint8_t order = 3;
 		generateRadianceCompute(pCommandList);
 		shCubeMap(pCommandList, order);
 		shSum(pCommandList, order);
@@ -494,7 +494,7 @@ bool LightProbe::createDescriptorTables()
 
 	// Get UAVs for resampling
 	m_uavTables[TABLE_RESAMPLE].resize(numMips);
-	for (auto i = 0ui8; i < numMips; ++i)
+	for (uint8_t i = 0; i < numMips; ++i)
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_irradiance->GetUAV(i));
@@ -503,7 +503,7 @@ bool LightProbe::createDescriptorTables()
 
 	// Get SRVs for resampling
 	m_srvTables[TABLE_RESAMPLE].resize(numMips);
-	for (auto i = 0ui8; i < numMips; ++i)
+	for (uint8_t i = 0; i < numMips; ++i)
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, i ? &m_irradiance->GetSRVLevel(i) : &m_radiance->GetSRV());
@@ -537,10 +537,10 @@ uint32_t LightProbe::generateMipsCompute(const CommandList* pCommandList, Resour
 		m_pipelines[RESAMPLE_COMPUTE], &m_uavTables[TABLE_RESAMPLE][1], 1, m_samplerTable,
 		0, numBarriers, &m_srvTables[TABLE_RESAMPLE][0], 2);
 
-	// Handle inconsistent biarrier states
-	assert(numBarriers >= 6);
-	numBarriers -= 6;
-	for (auto i = 0ui8; i < 6; ++i)
+	// Handle inconsistent barrier states
+	assert(numBarriers >= CubeMapFaceCount);
+	numBarriers -= CubeMapFaceCount;
+	for (uint8_t i = 0; i < CubeMapFaceCount; ++i)
 		// Adjust the state record only
 		m_irradiance->SetBarrier(pBarriers, m_irradiance->GetNumMips() - 1,
 			ResourceState::UNORDERED_ACCESS, numBarriers, i);
@@ -564,7 +564,7 @@ void LightProbe::upsampleGraphics(const CommandList* pCommandList, ResourceBarri
 	pCommandList->SetGraphics32BitConstants(2, SizeOfInUint32(cb.CosConsts.Imm), &cb);
 
 	const uint8_t numPasses = numMips - 1;
-	for (auto i = 0ui8; i + 1 < numPasses; ++i)
+	for (uint8_t i = 0; i + 1 < numPasses; ++i)
 	{
 		const auto c = numPasses - i;
 		cb.CosConsts.Level = c - 1;
@@ -597,7 +597,7 @@ void LightProbe::upsampleCompute(const CommandList* pCommandList, ResourceBarrie
 	pCommandList->SetCompute32BitConstants(3, SizeOfInUint32(cb.Imm), &cb);
 
 	const uint8_t numPasses = numMips - 1;
-	for (auto i = 0ui8; i + 1 < numPasses; ++i)
+	for (uint8_t i = 0; i + 1 < numPasses; ++i)
 	{
 		const auto c = numPasses - i;
 		const auto level = c - 1;
@@ -686,7 +686,7 @@ void LightProbe::shSum(const CommandList* pCommandList, uint8_t order)
 {
 	assert(order <= SH_MAX_ORDER);
 	ResourceBarrier barriers[4];
-	m_shBufferParity = 0ui8;
+	m_shBufferParity = 0;
 
 	pCommandList->SetComputePipelineLayout(m_pipelineLayouts[SH_SUM]);
 	pCommandList->SetCompute32BitConstant(4, order);

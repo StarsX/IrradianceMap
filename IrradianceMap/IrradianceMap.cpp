@@ -412,7 +412,7 @@ void IrradianceMap::PopulateCommandList()
 	ResourceBarrier barriers[11];
 	const auto dstState = ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE;
 	auto numBarriers = 0u;
-	for (auto i = 0ui8; i < 6; ++i)
+	for (uint8_t i = 0; i < LightProbe::CubeMapFaceCount; ++i)
 		numBarriers = m_lightProbe->GetIrradiance().SetBarrier(barriers, 0, dstState, numBarriers, i);
 	numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::RENDER_TARGET,
 		numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);

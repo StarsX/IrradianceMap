@@ -37,6 +37,8 @@ public:
 	XUSG::Texture2D& GetRadiance();
 	XUSG::StructuredBuffer::sptr GetSH() const;
 
+	static const uint8_t CubeMapFaceCount = 6;
+
 protected:
 	enum PipelineIndex : uint8_t
 	{
