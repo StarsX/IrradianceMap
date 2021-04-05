@@ -27,9 +27,9 @@ public:
 	bool SetLightProbesGT(const XUSG::Descriptor& irradiance, const XUSG::Descriptor& radiance);
 	bool SetLightProbesSH(const XUSG::StructuredBuffer::sptr& coeffSH);
 
-	void UpdateFrame(uint32_t frameIndex, DirectX::CXMVECTOR eyePt,
+	void UpdateFrame(uint8_t frameIndex, DirectX::CXMVECTOR eyePt,
 		DirectX::CXMMATRIX viewProj, float glossy, bool isPaused);
-	void Render(const XUSG::CommandList* pCommandList, uint32_t frameIndex, XUSG::ResourceBarrier* barriers,
+	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, XUSG::ResourceBarrier* barriers,
 		uint32_t numBarriers = 0, RenderMode mode = MIP_APPROX, bool needClear = false);
 	void Postprocess(const XUSG::CommandList* pCommandList, const XUSG::Descriptor& rtv,
 		uint32_t numBarriers, XUSG::ResourceBarrier* pBarriers);

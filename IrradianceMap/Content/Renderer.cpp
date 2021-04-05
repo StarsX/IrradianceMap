@@ -151,7 +151,7 @@ static const XMFLOAT2& IncrementalHalton()
 	return halton;
 }
 
-void Renderer::UpdateFrame(uint32_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewProj, float glossy, bool isPaused)
+void Renderer::UpdateFrame(uint8_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewProj, float glossy, bool isPaused)
 {
 	{
 		static auto angle = 0.0f;
@@ -183,7 +183,7 @@ void Renderer::UpdateFrame(uint32_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewP
 	m_frameParity = !m_frameParity;
 }
 
-void Renderer::Render(const CommandList* pCommandList, uint32_t frameIndex, ResourceBarrier* barriers,
+void Renderer::Render(const CommandList* pCommandList, uint8_t frameIndex, ResourceBarrier* barriers,
 	uint32_t numBarriers, RenderMode mode, bool needClear)
 {
 	numBarriers = m_renderTargets[RT_COLOR]->SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
