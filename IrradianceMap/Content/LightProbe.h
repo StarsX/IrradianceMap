@@ -28,8 +28,8 @@ public:
 		std::vector<XUSG::Resource>& uploaders, const std::wstring pFileNames[],
 		uint32_t numFiles, bool typedUAV);
 
-	void UpdateFrame(double time);
-	void Process(const XUSG::CommandList* pCommandList, PipelineType pipelineType);
+	void UpdateFrame(double time, uint8_t frameIndex);
+	void Process(const XUSG::CommandList* pCommandList, uint8_t frameIndex, PipelineType pipelineType);
 
 	XUSG::ResourceBase* GetIrradianceGT(XUSG::CommandList* pCommandList,
 		const wchar_t* fileName = nullptr, std::vector<XUSG::Resource>* pUploaders = nullptr);
@@ -37,6 +37,7 @@ public:
 	XUSG::Texture2D& GetRadiance();
 	XUSG::StructuredBuffer::sptr GetSH() const;
 
+	static const uint8_t FrameCount = 3;
 	static const uint8_t CubeMapFaceCount = 6;
 
 protected:
@@ -74,8 +75,8 @@ protected:
 
 	void upsampleGraphics(const XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers, uint32_t numBarriers);
 	void upsampleCompute(const XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers, uint32_t numBarriers);
-	void generateRadianceGraphics(const XUSG::CommandList* pCommandList);
-	void generateRadianceCompute(const XUSG::CommandList* pCommandList);
+	void generateRadianceGraphics(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void generateRadianceCompute(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 	void shCubeMap(const XUSG::CommandList* pCommandList, uint8_t order);
 	void shSum(const XUSG::CommandList* pCommandList, uint8_t order);
 	void shNormalize(const XUSG::CommandList* pCommandList, uint8_t order);
@@ -103,8 +104,10 @@ protected:
 	XUSG::StructuredBuffer::sptr m_coeffSH[2];
 	XUSG::StructuredBuffer::uptr m_weightSH[2];
 
-	float					m_mapSize;
-	double					m_time;
+	XUSG::ConstantBuffer::uptr	m_cbImmutable;
+	XUSG::ConstantBuffer::uptr	m_cbPerFrame;
+
+	uint32_t				m_inputProbeIdx;
 	uint32_t				m_numSHTexels;
 	uint8_t					m_shBufferParity;
 };

@@ -10,6 +10,20 @@ using namespace std;
 using namespace DirectX;
 using namespace XUSG;
 
+struct CBBasePass
+{
+	DirectX::XMFLOAT4X4	WorldViewProj;
+	DirectX::XMFLOAT4X4	WorldViewProjPrev;
+	DirectX::XMFLOAT4X4	World;
+	DirectX::XMFLOAT2	ProjBias;
+};
+
+struct CBPerFrame
+{
+	DirectX::XMFLOAT4	EyePtGlossy;
+	DirectX::XMFLOAT4X4	ScreenToWorld;
+};
+
 Renderer::Renderer(const Device& device) :
 	m_device(device),
 	m_frameParity(0)
@@ -57,6 +71,13 @@ bool Renderer::Init(CommandList* pCommandList, uint32_t width, uint32_t height,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, false, L"TemporalAAOut0");
 	m_outputViews[UAV_PP_TAA1]->Create(m_device, width, height, Format::R16G16B16A16_FLOAT, 1,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, false, L"TemporalAAOut1");
+
+	// Create constant buffers
+	m_cbBasePass = ConstantBuffer::MakeUnique();
+	N_RETURN(m_cbBasePass->Create(m_device, sizeof(CBBasePass[FrameCount]), FrameCount, nullptr, MemoryType::UPLOAD, L"CBBasePass"), false);
+
+	m_cbPerFrame = ConstantBuffer::MakeUnique();
+	N_RETURN(m_cbPerFrame->Create(m_device, sizeof(CBPerFrame[FrameCount]), FrameCount, nullptr, MemoryType::UPLOAD, L"CBPerFrame"), false);
 
 	// Create pipelines
 	N_RETURN(createInputLayout(), false);
@@ -167,17 +188,21 @@ void Renderer::UpdateFrame(uint8_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewPr
 			(halton.x * 2.0f - 1.0f) / m_viewport.x,
 			(halton.y * 2.0f - 1.0f) / m_viewport.y
 		};
-		m_cbBasePass.ProjBias = jitter;
-		m_cbBasePass.WorldViewProjPrev = m_cbBasePass.WorldViewProj;
-		XMStoreFloat4x4(&m_cbBasePass.WorldViewProj, XMMatrixTranspose(world * viewProj));
-		XMStoreFloat4x4(&m_cbBasePass.World, XMMatrixTranspose(world));
+
+		const auto pCbData = reinterpret_cast<CBBasePass*>(m_cbBasePass->Map(frameIndex));
+		pCbData->ProjBias = jitter;
+		pCbData->WorldViewProjPrev = m_worldViewProj;
+		XMStoreFloat4x4(&pCbData->WorldViewProj, XMMatrixTranspose(world * viewProj));
+		XMStoreFloat4x4(&pCbData->World, XMMatrixTranspose(world));
+		m_worldViewProj = pCbData->WorldViewProj;
 	}
 
 	{
+		const auto pCbData = reinterpret_cast<CBPerFrame*>(m_cbPerFrame->Map(frameIndex));
 		const auto projToWorld = XMMatrixInverse(nullptr, viewProj);
-		XMStoreFloat4x4(&m_cbPerFrame.ScreenToWorld, XMMatrixTranspose(projToWorld));
-		XMStoreFloat4(&m_cbPerFrame.EyePtGlossy, eyePt);
-		m_cbPerFrame.EyePtGlossy.w = glossy;
+		XMStoreFloat4x4(&pCbData->ScreenToWorld, XMMatrixTranspose(projToWorld));
+		XMStoreFloat4(&pCbData->EyePtGlossy, eyePt);
+		pCbData->EyePtGlossy.w = glossy;
 	}
 
 	m_frameParity = !m_frameParity;
@@ -193,14 +218,13 @@ void Renderer::Render(const CommandList* pCommandList, uint8_t frameIndex, Resou
 		ResourceState::PIXEL_SHADER_RESOURCE, numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
 	if (mode == SH_APPROX) numBarriers = m_coeffSH->SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
-	render(pCommandList, mode, needClear);
+	render(pCommandList, frameIndex, mode, needClear);
 
 	numBarriers = m_renderTargets[RT_VELOCITY]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE,
 		0, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
 	pCommandList->Barrier(numBarriers, barriers);
 
-	environment(pCommandList);
-
+	environment(pCommandList, frameIndex);
 	temporalAA(pCommandList);
 }
 
@@ -276,8 +300,8 @@ bool Renderer::createPipelineLayouts()
 	// This is a pipeline layout for base pass
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
-		pipelineLayout->SetConstants(VS_CONSTANTS, SizeOfInUint32(BasePassConstants), 0, 0, Shader::Stage::VS);
-		pipelineLayout->SetConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT4), 0, 0, Shader::Stage::PS);
+		pipelineLayout->SetRootCBV(VS_CONSTANTS, 0, 0, Shader::Stage::VS);
+		pipelineLayout->SetRootCBV(PS_CONSTANTS, 0, 0, Shader::Stage::PS);
 		pipelineLayout->SetRange(SHADER_RESOURCES, DescriptorType::SRV, 2, 0);
 		pipelineLayout->SetShaderStage(SHADER_RESOURCES, Shader::PS);
 		pipelineLayout->SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
@@ -289,8 +313,8 @@ bool Renderer::createPipelineLayouts()
 	// This is a pipeline layout for base pass SH
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
-		pipelineLayout->SetConstants(VS_CONSTANTS, SizeOfInUint32(BasePassConstants), 0, 0, Shader::Stage::VS);
-		pipelineLayout->SetConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT4), 0, 0, Shader::Stage::PS);
+		pipelineLayout->SetRootCBV(VS_CONSTANTS, 0, 0, Shader::Stage::VS);
+		pipelineLayout->SetRootCBV(PS_CONSTANTS, 0, 0, Shader::Stage::PS);
 		pipelineLayout->SetRange(SHADER_RESOURCES, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetShaderStage(SHADER_RESOURCES, Shader::PS);
 		pipelineLayout->SetRootSRV(BUFFER, 1, 0, DescriptorFlag::NONE, Shader::Stage::PS);
@@ -303,7 +327,7 @@ bool Renderer::createPipelineLayouts()
 	// This is a pipeline layout for drawing environment
 	{
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
-		pipelineLayout->SetConstants(PS_CONSTANTS, SizeOfInUint32(PerFrameConstants), 0, 0, Shader::Stage::PS);
+		pipelineLayout->SetRootCBV(PS_CONSTANTS, 0, 0, Shader::Stage::PS);
 		pipelineLayout->SetRange(SHADER_RESOURCES, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetShaderStage(SHADER_RESOURCES, Shader::Stage::PS);
 		pipelineLayout->SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
@@ -476,7 +500,7 @@ bool Renderer::createDescriptorTables()
 	return true;
 }
 
-void Renderer::render(const CommandList* pCommandList, RenderMode mode, bool needClear)
+void Renderer::render(const CommandList* pCommandList, uint8_t frameIndex, RenderMode mode, bool needClear)
 {
 	// Set framebuffer
 	pCommandList->OMSetFramebuffer(m_framebuffer);
@@ -502,8 +526,8 @@ void Renderer::render(const CommandList* pCommandList, RenderMode mode, bool nee
 	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
 
 	// Set descriptor tables
-	pCommandList->SetGraphics32BitConstants(VS_CONSTANTS, SizeOfInUint32(m_cbBasePass), &m_cbBasePass);
-	pCommandList->SetGraphics32BitConstants(PS_CONSTANTS, SizeOfInUint32(XMFLOAT4), &m_cbPerFrame);
+	pCommandList->SetGraphicsRootConstantBufferView(VS_CONSTANTS, m_cbBasePass->GetResource(), m_cbBasePass->GetCBVOffset(frameIndex));
+	pCommandList->SetGraphicsRootConstantBufferView(PS_CONSTANTS, m_cbPerFrame->GetResource(), m_cbPerFrame->GetCBVOffset(frameIndex));
 	pCommandList->SetGraphicsDescriptorTable(SHADER_RESOURCES, m_srvTables[mode == GROUND_TRUTH ? SRV_TABLE_GT : SRV_TABLE_BASE]);
 	pCommandList->SetGraphicsDescriptorTable(SAMPLER, m_samplerTable);
 	if (mode == SH_APPROX) pCommandList->SetGraphicsRootShaderResourceView(BUFFER, m_coeffSH->GetResource());
@@ -514,14 +538,14 @@ void Renderer::render(const CommandList* pCommandList, RenderMode mode, bool nee
 	pCommandList->DrawIndexed(m_numIndices, 1, 0, 0, 0);
 }
 
-void Renderer::environment(const CommandList* pCommandList)
+void Renderer::environment(const CommandList* pCommandList, uint8_t frameIndex)
 {
 	// Set render target
 	pCommandList->OMSetRenderTargets(1, &m_renderTargets[RT_COLOR]->GetRTV(), &m_depth->GetDSV());
 
 	// Set descriptor tables
 	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[ENVIRONMENT]);
-	pCommandList->SetGraphics32BitConstants(PS_CONSTANTS, SizeOfInUint32(m_cbPerFrame), &m_cbPerFrame);
+	pCommandList->SetGraphicsRootConstantBufferView(PS_CONSTANTS, m_cbPerFrame->GetResource(), m_cbPerFrame->GetCBVOffset(frameIndex));
 	pCommandList->SetGraphicsDescriptorTable(SHADER_RESOURCES, m_srvTables[SRV_TABLE_BASE]);
 	pCommandList->SetGraphicsDescriptorTable(SAMPLER, m_samplerTable);
 

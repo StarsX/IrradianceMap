@@ -34,6 +34,8 @@ public:
 	void Postprocess(const XUSG::CommandList* pCommandList, const XUSG::Descriptor& rtv,
 		uint32_t numBarriers, XUSG::ResourceBarrier* pBarriers);
 
+	static const uint8_t FrameCount = 3;
+
 protected:
 	enum PipelineLayoutSlot : uint8_t
 	{
@@ -92,25 +94,6 @@ protected:
 		NUM_OUTPUT_VIEW
 	};
 
-	struct BasePassConstants
-	{
-		DirectX::XMFLOAT4X4	WorldViewProj;
-		DirectX::XMFLOAT4X4	WorldViewProjPrev;
-		DirectX::XMFLOAT4X4	World;
-		DirectX::XMFLOAT2	ProjBias;
-	};
-
-	struct PerFrameConstants
-	{
-		DirectX::XMFLOAT4	EyePtGlossy;
-		DirectX::XMFLOAT4X4	ScreenToWorld;
-	};
-
-	struct SHConstants
-	{
-		DirectX::XMFLOAT4	CoeffSH[9];
-	};
-
 	bool createVB(XUSG::CommandList* pCommandList, uint32_t numVert,
 		uint32_t stride, const uint8_t* pData, std::vector<XUSG::Resource>& uploaders);
 	bool createIB(XUSG::CommandList* pCommandList, uint32_t numIndices,
@@ -120,8 +103,8 @@ protected:
 	bool createPipelines(XUSG::Format rtFormat);
 	bool createDescriptorTables();
 
-	void render(const XUSG::CommandList* pCommandList, RenderMode mode, bool needClear);
-	void environment(const XUSG::CommandList* pCommandList);
+	void render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, RenderMode mode, bool needClear);
+	void environment(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 	void temporalAA(const XUSG::CommandList* pCommandList);
 
 	XUSG::Device m_device;
@@ -131,8 +114,7 @@ protected:
 
 	DirectX::XMUINT2	m_viewport;
 	DirectX::XMFLOAT4	m_posScale;
-	BasePassConstants	m_cbBasePass;
-	PerFrameConstants	m_cbPerFrame;
+	DirectX::XMFLOAT4X4	m_worldViewProj;
 
 	const XUSG::InputLayout* m_pInputLayout;
 	XUSG::PipelineLayout	m_pipelineLayouts[NUM_PIPELINE];
@@ -150,6 +132,9 @@ protected:
 	XUSG::RenderTarget::uptr	m_renderTargets[NUM_RENDER_TARGET];
 	XUSG::Texture2D::uptr		m_outputViews[NUM_OUTPUT_VIEW];
 	XUSG::DepthStencil::uptr	m_depth;
+
+	XUSG::ConstantBuffer::uptr	m_cbBasePass;
+	XUSG::ConstantBuffer::uptr	m_cbPerFrame;
 
 	XUSG::ShaderPool::uptr				m_shaderPool;
 	XUSG::Graphics::PipelineCache::uptr	m_graphicsPipelineCache;

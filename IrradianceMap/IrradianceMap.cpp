@@ -242,7 +242,7 @@ void IrradianceMap::OnUpdate()
 	const auto eyePt = XMLoadFloat3(&m_eyePt);
 	const auto view = XMLoadFloat4x4(&m_view);
 	const auto proj = XMLoadFloat4x4(&m_proj);
-	m_lightProbe->UpdateFrame(g_renderMode == Renderer::MIP_APPROX ? time : 0.0);
+	m_lightProbe->UpdateFrame(g_renderMode == Renderer::MIP_APPROX ? time : 0.0, m_frameIndex);
 	m_renderer->UpdateFrame(m_frameIndex, eyePt, view * proj, m_glossy, m_isPaused);
 }
 
@@ -404,7 +404,7 @@ void IrradianceMap::PopulateCommandList()
 	ThrowIfFailed(pCommandList->Reset(m_commandAllocators[m_frameIndex], nullptr));
 
 	// Record commands.
-	m_lightProbe->Process(pCommandList, m_pipelineType);	// V-cycle
+	m_lightProbe->Process(pCommandList, m_frameIndex, m_pipelineType);	// V-cycle
 
 	const auto renderMode = m_pipelineType == LightProbe::SH && g_renderMode != Renderer::GROUND_TRUTH ? Renderer::SH_APPROX : g_renderMode;
 	if (renderMode == Renderer::SH_APPROX) m_renderer->SetLightProbesSH(m_lightProbe->GetSH());
