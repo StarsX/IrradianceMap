@@ -27,7 +27,7 @@ cbuffer cbPerObject
 {
 	matrix	g_worldViewProj;
 	matrix	g_worldViewProjPrev;
-	matrix	g_world;
+	float4x3 g_world;
 	float2	g_projBias;
 };
 
@@ -40,7 +40,7 @@ VSOut main(VSIn input)
 
 	const float4 pos = { input.Pos, 1.0 };
 	output.Pos = mul(pos, g_worldViewProj);
-	output.WSPos = mul(pos, g_world).xyz;
+	output.WSPos = mul(pos, g_world);
 	output.TSPos = mul(pos, g_worldViewProjPrev);
 	output.CSPos = output.Pos;
 

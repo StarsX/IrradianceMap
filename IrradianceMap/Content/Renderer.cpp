@@ -14,7 +14,7 @@ struct CBBasePass
 {
 	DirectX::XMFLOAT4X4	WorldViewProj;
 	DirectX::XMFLOAT4X4	WorldViewProjPrev;
-	DirectX::XMFLOAT4X4	World;
+	DirectX::XMFLOAT3X4	World;
 	DirectX::XMFLOAT2	ProjBias;
 };
 
@@ -193,7 +193,7 @@ void Renderer::UpdateFrame(uint8_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewPr
 		pCbData->ProjBias = jitter;
 		pCbData->WorldViewProjPrev = m_worldViewProj;
 		XMStoreFloat4x4(&pCbData->WorldViewProj, XMMatrixTranspose(world * viewProj));
-		XMStoreFloat4x4(&pCbData->World, XMMatrixTranspose(world));
+		XMStoreFloat3x4(&pCbData->World, world);
 		m_worldViewProj = pCbData->WorldViewProj;
 	}
 
