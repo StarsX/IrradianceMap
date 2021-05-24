@@ -24,14 +24,14 @@ struct CBPerFrame
 	DirectX::XMFLOAT4X4	ScreenToWorld;
 };
 
-Renderer::Renderer(const Device& device) :
+Renderer::Renderer(const Device::sptr& device) :
 	m_device(device),
 	m_frameParity(0)
 {
 	m_shaderPool = ShaderPool::MakeUnique();
-	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(device);
-	m_computePipelineCache = Compute::PipelineCache::MakeUnique(device);
-	m_pipelineLayoutCache = PipelineLayoutCache::MakeUnique(device);
+	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(device.get());
+	m_computePipelineCache = Compute::PipelineCache::MakeUnique(device.get());
+	m_pipelineLayoutCache = PipelineLayoutCache::MakeUnique(device.get());
 }
 
 Renderer::~Renderer()
@@ -39,7 +39,7 @@ Renderer::~Renderer()
 }
 
 bool Renderer::Init(CommandList* pCommandList, uint32_t width, uint32_t height,
-	const DescriptorTableCache::sptr& descriptorTableCache, vector<Resource>& uploaders,
+	const DescriptorTableCache::sptr& descriptorTableCache, vector<Resource::uptr>& uploaders,
 	const char* fileName, Format rtFormat, const XMFLOAT4& posScale)
 {
 	m_descriptorTableCache = descriptorTableCache;
@@ -56,28 +56,28 @@ bool Renderer::Init(CommandList* pCommandList, uint32_t width, uint32_t height,
 	// Create output views
 	// Render targets
 	for (auto& renderTarget : m_renderTargets) renderTarget = RenderTarget::MakeUnique();
-	m_renderTargets[RT_COLOR]->Create(m_device, width, height, Format::R16G16B16A16_FLOAT,
+	m_renderTargets[RT_COLOR]->Create(m_device.get(), width, height, Format::R16G16B16A16_FLOAT,
 		1, ResourceFlag::NONE, 1, 1, nullptr, false, L"Color");
-	m_renderTargets[RT_VELOCITY]->Create(m_device, width, height, Format::R16G16_FLOAT,
+	m_renderTargets[RT_VELOCITY]->Create(m_device.get(), width, height, Format::R16G16_FLOAT,
 		1, ResourceFlag::NONE, 1, 1, nullptr, false, L"Velocity");
 
 	m_depth = DepthStencil::MakeUnique();
-	m_depth->Create(m_device, width, height, Format::D24_UNORM_S8_UINT,
+	m_depth->Create(m_device.get(), width, height, Format::D24_UNORM_S8_UINT,
 		ResourceFlag::DENY_SHADER_RESOURCE, 1, 1, 1, 1.0f, 0, false, L"Depth");
 
 	// Temporal AA
 	for (auto& outViews : m_outputViews) outViews = Texture2D::MakeUnique();
-	m_outputViews[UAV_PP_TAA]->Create(m_device, width, height, Format::R16G16B16A16_FLOAT, 1,
+	m_outputViews[UAV_PP_TAA]->Create(m_device.get(), width, height, Format::R16G16B16A16_FLOAT, 1,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, false, L"TemporalAAOut0");
-	m_outputViews[UAV_PP_TAA1]->Create(m_device, width, height, Format::R16G16B16A16_FLOAT, 1,
+	m_outputViews[UAV_PP_TAA1]->Create(m_device.get(), width, height, Format::R16G16B16A16_FLOAT, 1,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, MemoryType::DEFAULT, false, L"TemporalAAOut1");
 
 	// Create constant buffers
 	m_cbBasePass = ConstantBuffer::MakeUnique();
-	N_RETURN(m_cbBasePass->Create(m_device, sizeof(CBBasePass[FrameCount]), FrameCount, nullptr, MemoryType::UPLOAD, L"CBBasePass"), false);
+	N_RETURN(m_cbBasePass->Create(m_device.get(), sizeof(CBBasePass[FrameCount]), FrameCount, nullptr, MemoryType::UPLOAD, L"CBBasePass"), false);
 
 	m_cbPerFrame = ConstantBuffer::MakeUnique();
-	N_RETURN(m_cbPerFrame->Create(m_device, sizeof(CBPerFrame[FrameCount]), FrameCount, nullptr, MemoryType::UPLOAD, L"CBPerFrame"), false);
+	N_RETURN(m_cbPerFrame->Create(m_device.get(), sizeof(CBPerFrame[FrameCount]), FrameCount, nullptr, MemoryType::UPLOAD, L"CBPerFrame"), false);
 
 	// Create pipelines
 	N_RETURN(createInputLayout(), false);
@@ -93,7 +93,7 @@ bool Renderer::SetLightProbes(const Descriptor& irradiance, const Descriptor& ra
 	const Descriptor descriptors[] = { radiance, irradiance };
 	const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 	descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-	X_RETURN(m_srvTables[SRV_TABLE_BASE], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+	X_RETURN(m_srvTables[SRV_TABLE_BASE], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 
 	return true;
 }
@@ -103,7 +103,7 @@ bool Renderer::SetLightProbesGT(const Descriptor& irradiance, const Descriptor& 
 	const Descriptor descriptors[] = { radiance, irradiance };
 	const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 	descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-	X_RETURN(m_srvTables[SRV_TABLE_GT], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+	X_RETURN(m_srvTables[SRV_TABLE_GT], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 
 	return true;
 }
@@ -257,28 +257,28 @@ void Renderer::Postprocess(const CommandList* pCommandList, const Descriptor& rt
 }
 
 bool Renderer::createVB(CommandList* pCommandList, uint32_t numVert,
-	uint32_t stride, const uint8_t* pData, vector<Resource>& uploaders)
+	uint32_t stride, const uint8_t* pData, vector<Resource::uptr>& uploaders)
 {
 	m_vertexBuffer = VertexBuffer::MakeUnique();
-	N_RETURN(m_vertexBuffer->Create(m_device, numVert, stride, ResourceFlag::NONE,
+	N_RETURN(m_vertexBuffer->Create(m_device.get(), numVert, stride, ResourceFlag::NONE,
 		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, 1, nullptr, L"MeshVB"), false);
-	uploaders.emplace_back();
+	uploaders.emplace_back(Resource::MakeUnique());
 
-	return m_vertexBuffer->Upload(pCommandList, uploaders.back(), pData, stride * numVert);
+	return m_vertexBuffer->Upload(pCommandList, uploaders.back().get(), pData, stride * numVert);
 }
 
 bool Renderer::createIB(CommandList* pCommandList, uint32_t numIndices,
-	const uint32_t* pData, vector<Resource>& uploaders)
+	const uint32_t* pData, vector<Resource::uptr>& uploaders)
 {
 	m_numIndices = numIndices;
 
 	const uint32_t byteWidth = sizeof(uint32_t) * numIndices;
 	m_indexBuffer = IndexBuffer::MakeUnique();
-	N_RETURN(m_indexBuffer->Create(m_device, byteWidth, Format::R32_UINT, ResourceFlag::NONE,
+	N_RETURN(m_indexBuffer->Create(m_device.get(), byteWidth, Format::R32_UINT, ResourceFlag::NONE,
 		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, 1, nullptr, L"MeshIB"), false);
-	uploaders.emplace_back();
+	uploaders.emplace_back(Resource::MakeUnique());
 
-	return m_indexBuffer->Upload(pCommandList, uploaders.back(), pData, byteWidth);
+	return m_indexBuffer->Upload(pCommandList, uploaders.back().get(), pData, byteWidth);
 }
 
 bool Renderer::createInputLayout()
@@ -306,7 +306,7 @@ bool Renderer::createPipelineLayouts()
 		pipelineLayout->SetShaderStage(SHADER_RESOURCES, Shader::PS);
 		pipelineLayout->SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
 		pipelineLayout->SetShaderStage(SAMPLER, Shader::PS);
-		X_RETURN(m_pipelineLayouts[BASE_PASS], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
+		X_RETURN(m_pipelineLayouts[BASE_PASS], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, L"BasePassLayout"), false);
 	}
 
@@ -320,7 +320,7 @@ bool Renderer::createPipelineLayouts()
 		pipelineLayout->SetRootSRV(BUFFER, 1, 0, DescriptorFlag::NONE, Shader::Stage::PS);
 		pipelineLayout->SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
 		pipelineLayout->SetShaderStage(SAMPLER, Shader::PS);
-		X_RETURN(m_pipelineLayouts[BASE_PASS_SH], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
+		X_RETURN(m_pipelineLayouts[BASE_PASS_SH], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, L"BasePassLayout"), false);
 	}
 
@@ -332,7 +332,7 @@ bool Renderer::createPipelineLayouts()
 		pipelineLayout->SetShaderStage(SHADER_RESOURCES, Shader::Stage::PS);
 		pipelineLayout->SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
 		pipelineLayout->SetShaderStage(SAMPLER, Shader::PS);
-		X_RETURN(m_pipelineLayouts[ENVIRONMENT], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
+		X_RETURN(m_pipelineLayouts[ENVIRONMENT], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"EnvironmentLayout"), false);
 	}
 
@@ -343,7 +343,7 @@ bool Renderer::createPipelineLayouts()
 			DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(SHADER_RESOURCES, DescriptorType::SRV, 3, 0);
 		pipelineLayout->SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
-		X_RETURN(m_pipelineLayouts[TEMPORAL_AA], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
+		X_RETURN(m_pipelineLayouts[TEMPORAL_AA], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"TemporalAALayout"), false);
 	}
 
@@ -352,7 +352,7 @@ bool Renderer::createPipelineLayouts()
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
-		X_RETURN(m_pipelineLayouts[POSTPROCESS], pipelineLayout->GetPipelineLayout(*m_pipelineLayoutCache,
+		X_RETURN(m_pipelineLayouts[POSTPROCESS], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"PostprocessLayout"), false);
 	}
 
@@ -380,7 +380,7 @@ bool Renderer::createPipelines(Format rtFormat)
 		state->OMSetRTVFormat(RT_COLOR, Format::R16G16B16A16_FLOAT);
 		state->OMSetRTVFormat(RT_VELOCITY, Format::R16G16_FLOAT);
 		state->OMSetDSVFormat(Format::D24_UNORM_S8_UINT);
-		X_RETURN(m_pipelines[BASE_PASS], state->GetPipeline(*m_graphicsPipelineCache, L"BasePass"), false);
+		X_RETURN(m_pipelines[BASE_PASS], state->GetPipeline(m_graphicsPipelineCache.get(), L"BasePass"), false);
 	}
 
 	// Base pass SH
@@ -397,7 +397,7 @@ bool Renderer::createPipelines(Format rtFormat)
 		state->OMSetRTVFormat(RT_COLOR, Format::R16G16B16A16_FLOAT);
 		state->OMSetRTVFormat(RT_VELOCITY, Format::R16G16_FLOAT);
 		state->OMSetDSVFormat(Format::D24_UNORM_S8_UINT);
-		X_RETURN(m_pipelines[BASE_PASS_SH], state->GetPipeline(*m_graphicsPipelineCache, L"BasePass"), false);
+		X_RETURN(m_pipelines[BASE_PASS_SH], state->GetPipeline(m_graphicsPipelineCache.get(), L"BasePass"), false);
 	}
 
 	// Environment
@@ -409,12 +409,12 @@ bool Renderer::createPipelines(Format rtFormat)
 		state->SetPipelineLayout(m_pipelineLayouts[ENVIRONMENT]);
 		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex));
 		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
-		state->DSSetState(Graphics::DEPTH_READ_LESS_EQUAL, *m_graphicsPipelineCache);
+		state->DSSetState(Graphics::DEPTH_READ_LESS_EQUAL, m_graphicsPipelineCache.get());
 		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
 		state->OMSetNumRenderTargets(1);
 		state->OMSetRTVFormat(RT_COLOR, Format::R16G16B16A16_FLOAT);
 		state->OMSetDSVFormat(Format::D24_UNORM_S8_UINT);
-		X_RETURN(m_pipelines[ENVIRONMENT], state->GetPipeline(*m_graphicsPipelineCache, L"Environment"), false);
+		X_RETURN(m_pipelines[ENVIRONMENT], state->GetPipeline(m_graphicsPipelineCache.get(), L"Environment"), false);
 	}
 
 	// Temporal AA
@@ -424,7 +424,7 @@ bool Renderer::createPipelines(Format rtFormat)
 		const auto state = Compute::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[TEMPORAL_AA]);
 		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex++));
-		X_RETURN(m_pipelines[TEMPORAL_AA], state->GetPipeline(*m_computePipelineCache, L"TemporalAA"), false);
+		X_RETURN(m_pipelines[TEMPORAL_AA], state->GetPipeline(m_computePipelineCache.get(), L"TemporalAA"), false);
 	}
 
 	// Postprocess
@@ -435,11 +435,11 @@ bool Renderer::createPipelines(Format rtFormat)
 		state->SetPipelineLayout(m_pipelineLayouts[POSTPROCESS]);
 		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex));
 		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex));
-		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, *m_graphicsPipelineCache);
+		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineCache.get());
 		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
 		state->OMSetNumRenderTargets(1);
 		state->OMSetRTVFormat(0, rtFormat);
-		X_RETURN(m_pipelines[POSTPROCESS], state->GetPipeline(*m_graphicsPipelineCache, L"Postprocess"), false);
+		X_RETURN(m_pipelines[POSTPROCESS], state->GetPipeline(m_graphicsPipelineCache.get(), L"Postprocess"), false);
 	}
 
 	return true;
@@ -452,7 +452,7 @@ bool Renderer::createDescriptorTables()
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_outputViews[UAV_PP_TAA + i]->GetUAV());
-		X_RETURN(m_uavTables[UAV_TABLE_TAA + i], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		X_RETURN(m_uavTables[UAV_TABLE_TAA + i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	// Temporal AA input SRVs
@@ -466,7 +466,7 @@ bool Renderer::createDescriptorTables()
 		};
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-		X_RETURN(m_srvTables[SRV_TABLE_TAA + i], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		X_RETURN(m_srvTables[SRV_TABLE_TAA + i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	// Postprocess SRVs
@@ -474,7 +474,7 @@ bool Renderer::createDescriptorTables()
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_outputViews[UAV_PP_TAA + i]->GetSRV());
-		X_RETURN(m_srvTables[SRV_TABLE_PP + i], descriptorTable->GetCbvSrvUavTable(*m_descriptorTableCache), false);
+		X_RETURN(m_srvTables[SRV_TABLE_PP + i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	// RTV table
@@ -486,15 +486,15 @@ bool Renderer::createDescriptorTables()
 		};
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-		m_framebuffer = descriptorTable->GetFramebuffer(*m_descriptorTableCache, &m_depth->GetDSV());
+		m_framebuffer = descriptorTable->GetFramebuffer(m_descriptorTableCache.get(), &m_depth->GetDSV());
 	}
 
 	// Create the sampler
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		const auto samplerAnisoWrap = SamplerPreset::ANISOTROPIC_WRAP;
-		descriptorTable->SetSamplers(0, 1, &samplerAnisoWrap, *m_descriptorTableCache);
-		X_RETURN(m_samplerTable, descriptorTable->GetSamplerTable(*m_descriptorTableCache), false);
+		descriptorTable->SetSamplers(0, 1, &samplerAnisoWrap, m_descriptorTableCache.get());
+		X_RETURN(m_samplerTable, descriptorTable->GetSamplerTable(m_descriptorTableCache.get()), false);
 	}
 
 	return true;
@@ -526,11 +526,11 @@ void Renderer::render(const CommandList* pCommandList, uint8_t frameIndex, Rende
 	pCommandList->IASetPrimitiveTopology(PrimitiveTopology::TRIANGLELIST);
 
 	// Set descriptor tables
-	pCommandList->SetGraphicsRootConstantBufferView(VS_CONSTANTS, m_cbBasePass->GetResource(), m_cbBasePass->GetCBVOffset(frameIndex));
-	pCommandList->SetGraphicsRootConstantBufferView(PS_CONSTANTS, m_cbPerFrame->GetResource(), m_cbPerFrame->GetCBVOffset(frameIndex));
+	pCommandList->SetGraphicsRootConstantBufferView(VS_CONSTANTS, m_cbBasePass.get(), m_cbBasePass->GetCBVOffset(frameIndex));
+	pCommandList->SetGraphicsRootConstantBufferView(PS_CONSTANTS, m_cbPerFrame.get(), m_cbPerFrame->GetCBVOffset(frameIndex));
 	pCommandList->SetGraphicsDescriptorTable(SHADER_RESOURCES, m_srvTables[mode == GROUND_TRUTH ? SRV_TABLE_GT : SRV_TABLE_BASE]);
 	pCommandList->SetGraphicsDescriptorTable(SAMPLER, m_samplerTable);
-	if (mode == SH_APPROX) pCommandList->SetGraphicsRootShaderResourceView(BUFFER, m_coeffSH->GetResource());
+	if (mode == SH_APPROX) pCommandList->SetGraphicsRootShaderResourceView(BUFFER, m_coeffSH.get());
 
 	pCommandList->IASetVertexBuffers(0, 1, &m_vertexBuffer->GetVBV());
 	pCommandList->IASetIndexBuffer(m_indexBuffer->GetIBV());
@@ -545,7 +545,7 @@ void Renderer::environment(const CommandList* pCommandList, uint8_t frameIndex)
 
 	// Set descriptor tables
 	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[ENVIRONMENT]);
-	pCommandList->SetGraphicsRootConstantBufferView(PS_CONSTANTS, m_cbPerFrame->GetResource(), m_cbPerFrame->GetCBVOffset(frameIndex));
+	pCommandList->SetGraphicsRootConstantBufferView(PS_CONSTANTS, m_cbPerFrame.get(), m_cbPerFrame->GetCBVOffset(frameIndex));
 	pCommandList->SetGraphicsDescriptorTable(SHADER_RESOURCES, m_srvTables[SRV_TABLE_BASE]);
 	pCommandList->SetGraphicsDescriptorTable(SAMPLER, m_samplerTable);
 

@@ -20,21 +20,21 @@ public:
 		NUM_PIPE_TYPE
 	};
 
-	LightProbe(const XUSG::Device &device);
+	LightProbe(const XUSG::Device::sptr &device);
 	virtual ~LightProbe();
 
 	bool Init(XUSG::CommandList* pCommandList, uint32_t width, uint32_t height,
 		const XUSG::DescriptorTableCache::sptr& descriptorTableCache,
-		std::vector<XUSG::Resource>& uploaders, const std::wstring pFileNames[],
+		std::vector<XUSG::Resource::uptr>& uploaders, const std::wstring pFileNames[],
 		uint32_t numFiles, bool typedUAV);
 
 	void UpdateFrame(double time, uint8_t frameIndex);
 	void Process(const XUSG::CommandList* pCommandList, uint8_t frameIndex, PipelineType pipelineType);
 
-	XUSG::ResourceBase* GetIrradianceGT(XUSG::CommandList* pCommandList,
-		const wchar_t* fileName = nullptr, std::vector<XUSG::Resource>* pUploaders = nullptr);
-	XUSG::Texture2D& GetIrradiance();
-	XUSG::Texture2D& GetRadiance();
+	const XUSG::ShaderResource* GetIrradianceGT(XUSG::CommandList* pCommandList,
+		const wchar_t* fileName = nullptr, std::vector<XUSG::Resource::uptr>* pUploaders = nullptr);
+	XUSG::Texture2D* GetIrradiance();
+	XUSG::ShaderResource* GetRadiance();
 	XUSG::StructuredBuffer::sptr GetSH() const;
 
 	static const uint8_t FrameCount = 3;
@@ -81,7 +81,7 @@ protected:
 	void shSum(const XUSG::CommandList* pCommandList, uint8_t order);
 	void shNormalize(const XUSG::CommandList* pCommandList, uint8_t order);
 	
-	XUSG::Device m_device;
+	XUSG::Device::sptr m_device;
 
 	XUSG::ShaderPool::uptr				m_shaderPool;
 	XUSG::Graphics::PipelineCache::uptr	m_graphicsPipelineCache;
@@ -96,8 +96,8 @@ protected:
 	std::vector<XUSG::DescriptorTable> m_uavTables[NUM_UAV_SRV];
 	XUSG::DescriptorTable	m_samplerTable;
 
-	XUSG::ResourceBase::sptr m_groundTruth;
-	std::vector<XUSG::ResourceBase::sptr> m_sources;
+	XUSG::ShaderResource::sptr m_groundTruth;
+	std::vector<XUSG::ShaderResource::sptr> m_sources;
 	XUSG::RenderTarget::uptr	m_irradiance;
 	XUSG::RenderTarget::uptr	m_radiance;
 
