@@ -187,8 +187,8 @@ void IrradianceMap::LoadAssets()
 	}
 	
 	// Close the command list and execute it to begin the initial GPU setup.
-	ThrowIfFailed(pCommandList->Close());
-	m_commandQueue->SubmitCommandList(pCommandList);
+	N_RETURN(pCommandList->Close(), ThrowIfFailed(E_FAIL));
+	m_commandQueue->ExecuteCommandList(pCommandList);
 
 	// Create synchronization objects and wait until assets have been uploaded to the GPU.
 	{
@@ -250,7 +250,7 @@ void IrradianceMap::OnRender()
 	PopulateCommandList();
 
 	// Execute the command list.
-	m_commandQueue->SubmitCommandList(m_commandList.get());
+	m_commandQueue->ExecuteCommandList(m_commandList.get());
 
 	// Present the frame.
 	ThrowIfFailed(m_swapChain->Present(0, 0));
@@ -423,7 +423,7 @@ void IrradianceMap::PopulateCommandList()
 	numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::PRESENT);
 	pCommandList->Barrier(numBarriers, barriers);
 
-	ThrowIfFailed(pCommandList->Close());
+	N_RETURN(pCommandList->Close(), ThrowIfFailed(E_FAIL));
 }
 
 // Wait for pending GPU work to complete.
