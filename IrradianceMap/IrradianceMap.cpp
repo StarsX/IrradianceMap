@@ -253,7 +253,7 @@ void IrradianceMap::OnRender()
 	m_commandQueue->ExecuteCommandList(m_commandList.get());
 
 	// Present the frame.
-	ThrowIfFailed(m_swapChain->Present(0, 0));
+	N_RETURN(m_swapChain->Present(0, 0), ThrowIfFailed(E_FAIL));
 
 	MoveToNextFrame();
 }
@@ -431,10 +431,10 @@ void IrradianceMap::PopulateCommandList()
 void IrradianceMap::WaitForGpu()
 {
 	// Schedule a Signal command in the queue.
-	ThrowIfFailed(m_commandQueue->Signal(m_fence.get(), m_fenceValues[m_frameIndex]));
+	N_RETURN(m_commandQueue->Signal(m_fence.get(), m_fenceValues[m_frameIndex]), ThrowIfFailed(E_FAIL));
 
 	// Wait until the fence has been processed.
-	ThrowIfFailed(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent));
+	N_RETURN(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent), ThrowIfFailed(E_FAIL));
 	WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
 
 	// Increment the fence value for the current frame.
@@ -446,7 +446,7 @@ void IrradianceMap::MoveToNextFrame()
 {
 	// Schedule a Signal command in the queue.
 	const auto currentFenceValue = m_fenceValues[m_frameIndex];
-	ThrowIfFailed(m_commandQueue->Signal(m_fence.get(), currentFenceValue));
+	N_RETURN(m_commandQueue->Signal(m_fence.get(), currentFenceValue), ThrowIfFailed(E_FAIL));
 
 	// Update the frame index.
 	m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
@@ -454,7 +454,7 @@ void IrradianceMap::MoveToNextFrame()
 	// If the next frame is not ready to be rendered yet, wait until it is ready.
 	if (m_fence->GetCompletedValue() < m_fenceValues[m_frameIndex])
 	{
-		ThrowIfFailed(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent));
+		N_RETURN(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent), ThrowIfFailed(E_FAIL));
 		WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
 	}
 
