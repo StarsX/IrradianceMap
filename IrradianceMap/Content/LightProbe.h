@@ -33,8 +33,8 @@ public:
 
 	const XUSG::ShaderResource* GetIrradianceGT(XUSG::CommandList* pCommandList,
 		const wchar_t* fileName = nullptr, std::vector<XUSG::Resource::uptr>* pUploaders = nullptr);
-	XUSG::Texture2D* GetIrradiance();
-	XUSG::ShaderResource* GetRadiance();
+	XUSG::Texture2D* GetIrradiance() const;
+	XUSG::ShaderResource* GetRadiance() const;
 	XUSG::StructuredBuffer::sptr GetSH() const;
 
 	static const uint8_t FrameCount = 3;

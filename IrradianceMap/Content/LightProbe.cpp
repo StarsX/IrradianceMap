@@ -184,12 +184,12 @@ const ShaderResource* LightProbe::GetIrradianceGT(CommandList* pCommandList,
 	return m_groundTruth.get();
 }
 
-Texture2D* LightProbe::GetIrradiance()
+Texture2D* LightProbe::GetIrradiance() const
 {
 	return m_irradiance.get();
 }
 
-ShaderResource* LightProbe::GetRadiance()
+ShaderResource* LightProbe::GetRadiance() const
 {
 	return m_radiance.get();
 }
