@@ -435,7 +435,7 @@ void IrradianceMap::WaitForGpu()
 
 	// Wait until the fence has been processed.
 	N_RETURN(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent), ThrowIfFailed(E_FAIL));
-	WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
+	WaitForSingleObject(m_fenceEvent, INFINITE);
 
 	// Increment the fence value for the current frame.
 	m_fenceValues[m_frameIndex]++;
@@ -455,7 +455,7 @@ void IrradianceMap::MoveToNextFrame()
 	if (m_fence->GetCompletedValue() < m_fenceValues[m_frameIndex])
 	{
 		N_RETURN(m_fence->SetEventOnCompletion(m_fenceValues[m_frameIndex], m_fenceEvent), ThrowIfFailed(E_FAIL));
-		WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
+		WaitForSingleObject(m_fenceEvent, INFINITE);
 	}
 
 	// Set the fence value for the next frame.
