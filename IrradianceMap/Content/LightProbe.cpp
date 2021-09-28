@@ -66,12 +66,12 @@ bool LightProbe::Init(CommandList* pCommandList, uint32_t width, uint32_t height
 	m_irradiance = RenderTarget::MakeUnique();
 	m_irradiance->Create(m_device.get(), texWidth, texHeight, format, 6,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, cb.NumLevels, 1,
-		nullptr, true, L"Irradiance");
+		nullptr, true, MemoryFlag::NONE, L"Irradiance");
 
 	m_radiance = RenderTarget::MakeUnique();
-	m_radiance->Create(m_device.get(), texWidth, texHeight, format,
-		6, ResourceFlag::ALLOW_UNORDERED_ACCESS,
-		1, 1, nullptr, true, L"Radiance");
+	m_radiance->Create(m_device.get(), texWidth, texHeight, format, 6,
+		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, nullptr, true,
+		MemoryFlag::NONE, L"Radiance");
 
 	m_numSHTexels = SH_TEX_SIZE * SH_TEX_SIZE * 6;
 	const auto numGroups = DIV_UP(m_numSHTexels, SH_GROUP_SIZE);
@@ -81,27 +81,29 @@ bool LightProbe::Init(CommandList* pCommandList, uint32_t width, uint32_t height
 	m_coeffSH[0] = StructuredBuffer::MakeShared();
 	m_coeffSH[0]->Create(m_device.get(), maxElements, sizeof(float[3]),
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, MemoryType::DEFAULT,
-		1, nullptr, 1, nullptr, L"SHCoefficients0");
+		1, nullptr, 1, nullptr, MemoryFlag::NONE, L"SHCoefficients0");
 	m_coeffSH[1] = StructuredBuffer::MakeShared();
 	m_coeffSH[1]->Create(m_device.get(), maxSumElements, sizeof(float[3]),
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, MemoryType::DEFAULT,
-		1, nullptr, 1, nullptr, L"SHCoefficients1");
+		1, nullptr, 1, nullptr, MemoryFlag::NONE, L"SHCoefficients1");
 	m_weightSH[0] = StructuredBuffer::MakeUnique();
 	m_weightSH[0]->Create(m_device.get(), numGroups, sizeof(float),
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, MemoryType::DEFAULT,
-		1, nullptr, 1, nullptr, L"SHWeights0");
+		1, nullptr, 1, nullptr, MemoryFlag::NONE, L"SHWeights0");
 	m_weightSH[1] = StructuredBuffer::MakeUnique();
 	m_weightSH[1]->Create(m_device.get(), numSumGroups, sizeof(float),
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, MemoryType::DEFAULT,
-		1, nullptr, 1, nullptr, L"SHWeights1");
+		1, nullptr, 1, nullptr, MemoryFlag::NONE, L"SHWeights1");
 
 	// Create constant buffers
 	m_cbImmutable = ConstantBuffer::MakeUnique();
-	N_RETURN(m_cbImmutable->Create(m_device.get(), sizeof(CBImmutable), 1, nullptr, MemoryType::UPLOAD, L"CBImmutable"), false);
+	N_RETURN(m_cbImmutable->Create(m_device.get(), sizeof(CBImmutable), 1,
+		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"CBImmutable"), false);
 	*reinterpret_cast<CBImmutable*>(m_cbImmutable->Map()) = cb;
 
 	m_cbPerFrame = ConstantBuffer::MakeUnique();
-	N_RETURN(m_cbPerFrame->Create(m_device.get(), sizeof(float[FrameCount]), FrameCount, nullptr, MemoryType::UPLOAD, L"CBPerFrame"), false);
+	N_RETURN(m_cbPerFrame->Create(m_device.get(), sizeof(float[FrameCount]), FrameCount,
+		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"CBPerFrame"), false);
 
 	N_RETURN(createPipelineLayouts(), false);
 	N_RETURN(createPipelines(format, typedUAV), false);
