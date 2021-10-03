@@ -1,1 +1,1 @@
-start IrradianceMap.exe -mesh Media/dragon.obj
+start IrradianceMap.exe -mesh Assets/dragon.obj

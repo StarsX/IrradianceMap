@@ -1,1 +1,1 @@
-start IrradianceMap.exe -mesh Media/Bunny.obj -env Media/uffizi_cross.dds
+start IrradianceMap.exe -mesh Assets/Bunny.obj -env Assets/uffizi_cross.dds

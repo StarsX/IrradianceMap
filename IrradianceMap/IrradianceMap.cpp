@@ -29,7 +29,7 @@ IrradianceMap::IrradianceMap(uint32_t width, uint32_t height, wstring name) :
 	m_showFPS(true),
 	m_isPaused(true),
 	m_tracking(false),
-	m_meshFileName("Media/bunny.obj"),
+	m_meshFileName("Assets/bunny.obj"),
 	m_meshPosScale(0.0f, 0.0f, 0.0f, 1.0f)
 {
 #if defined (_DEBUG)
@@ -43,11 +43,11 @@ IrradianceMap::IrradianceMap(uint32_t width, uint32_t height, wstring name) :
 
 	m_envFileNames =
 	{
-		L"Media/uffizi_cross.dds",
-		L"Media/grace_cross.dds",
-		L"Media/rnl_cross.dds",
-		L"Media/galileo_cross.dds",
-		L"Media/stpeters_cross.dds"
+		L"Assets/uffizi_cross.dds",
+		L"Assets/grace_cross.dds",
+		L"Assets/rnl_cross.dds",
+		L"Assets/galileo_cross.dds",
+		L"Assets/stpeters_cross.dds"
 	};
 }
 

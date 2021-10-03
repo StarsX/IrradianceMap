@@ -9,8 +9,8 @@
 //--------------------------------------------------------------------------------------
 struct PSIn
 {
-	float4 Pos : SV_POSITION;
-	float2 Tex : TEXCOORD;
+	float4 Pos	: SV_POSITION;
+	float2 UV	: TEXCOORD;
 };
 
 //--------------------------------------------------------------------------------------
@@ -41,9 +41,9 @@ SamplerState	g_smpLinear;
 //--------------------------------------------------------------------------------------
 float3 main(PSIn input) : SV_TARGET
 {
-	const float3 tex = GetCubeTexcoord(g_slice, input.Tex);
-	const float3 source1 = g_txSources[0].SampleLevel(g_smpLinear, tex, 0.0);
-	const float3 source2 = g_txSources[1].SampleLevel(g_smpLinear, tex, 0.0);
+	const float3 uv = GetCubeTexcoord(g_slice, input.UV);
+	const float3 source1 = g_txSources[0].SampleLevel(g_smpLinear, uv, 0.0);
+	const float3 source2 = g_txSources[1].SampleLevel(g_smpLinear, uv, 0.0);
 
 	return lerp(source1, source2, g_blend);
 }

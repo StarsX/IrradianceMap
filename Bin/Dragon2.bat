@@ -1,1 +1,1 @@
-start IrradianceMap.exe -mesh Media/dragon.obj -env Media/uffizi_cross.dds Media/grace_cross.dds
+start IrradianceMap.exe -mesh Assets/dragon.obj -env Assets/uffizi_cross.dds Assets/grace_cross.dds
