@@ -118,6 +118,9 @@
     <None Include="Content\Shaders\CubeMap.hlsli">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="Content\Shaders\SHIrradiance.hlsli">
+      <Filter>Shaders\SHMath</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Content\Shaders\CSTemporalAA.hlsl">

@@ -239,6 +239,7 @@ COPY /Y "$(ProjectDir)XUSG\Bin\$(Platform)\$(Configuration)\*.dll" "$(ProjectDir
   <ItemGroup>
     <None Include="Content\Shaders\CubeMap.hlsli" />
     <None Include="Content\Shaders\MipCosine.hlsli" />
+    <None Include="Content\Shaders\SHIrradiance.hlsli" />
     <None Include="Content\Shaders\SHMath.hlsli" />
   </ItemGroup>
   <ItemGroup>
