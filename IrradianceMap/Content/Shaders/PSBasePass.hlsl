@@ -33,7 +33,7 @@ cbuffer cbPerFrame
 // Textures
 //--------------------------------------------------------------------------------------
 TextureCube<float3>	g_txRadiance	: register (t0);
-#ifndef SH_MAX_ORDER
+#ifndef SH_ORDER
 TextureCube<float3>	g_txIrradiance	: register (t1);
 #endif
 
@@ -97,7 +97,7 @@ PSOut Shade(PSIn input, min16float3 norm, float3 irradiance)
 //--------------------------------------------------------------------------------------
 // Base geometry-buffer pass
 //--------------------------------------------------------------------------------------
-#ifndef SH_MAX_ORDER
+#ifndef SH_ORDER
 PSOut main(PSIn input)
 {
 	const min16float3 norm = min16float3(normalize(input.Norm));

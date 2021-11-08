@@ -2,7 +2,7 @@
 // Copyright (c) XU, Tianchen. All rights reserved.
 //--------------------------------------------------------------------------------------
 
-#include "SHMath.hlsli"
+#define SH_ORDER 3
 #include "SHIrradiance.hlsli"
 #include "PSBasePass.hlsl"
 
