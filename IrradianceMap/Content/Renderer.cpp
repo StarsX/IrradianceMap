@@ -12,16 +12,16 @@ using namespace XUSG;
 
 struct CBBasePass
 {
-	DirectX::XMFLOAT4X4	WorldViewProj;
-	DirectX::XMFLOAT4X4	WorldViewProjPrev;
-	DirectX::XMFLOAT3X4	World;
-	DirectX::XMFLOAT2	ProjBias;
+	XMFLOAT4X4	WorldViewProj;
+	XMFLOAT4X4	WorldViewProjPrev;
+	XMFLOAT3X4	World;
+	XMFLOAT2	ProjBias;
 };
 
 struct CBPerFrame
 {
-	DirectX::XMFLOAT4	EyePtGlossy;
-	DirectX::XMFLOAT4X4	ScreenToWorld;
+	XMFLOAT4	EyePtGlossy;
+	XMFLOAT4X4	ScreenToWorld;
 };
 
 Renderer::Renderer(const Device::sptr& device) :
