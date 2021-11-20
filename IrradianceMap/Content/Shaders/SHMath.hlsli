@@ -8,8 +8,8 @@
 #define CASE_SH_EVAL_BASIS(order, degree) case order: { SH_EVAL_BASIS(order, degree, dir, result); break; }
 
 // routine generated programmatically for evaluating SH basis for degree 1
-// inputs (x,y,z) are a point on the sphere (i.e., must be unit length)
-// output is vector b with SH basis evaluated at (x,y,z).
+// inputs (x, y, z) are a point on the sphere (i.e., must be unit length)
+// output is vector b with SH basis evaluated at (x, y, z).
 void sh_eval_basis_1(float3 v, out float b[4])
 {
 	// m = 0 //
@@ -18,7 +18,7 @@ void sh_eval_basis_1(float3 v, out float b[4])
 	b[0] = p_0_0; // l = 0, m = 0
 	// l = 1
 	const float p_1_0 = 0.488602511902919920 * v.z;
-	b[2] = p_1_0; // l = 1,m = 0
+	b[2] = p_1_0; // l = 1, m = 0
 
 	// m = 1 //
 	const float s1 = v.y;
@@ -31,8 +31,8 @@ void sh_eval_basis_1(float3 v, out float b[4])
 }
 
 // routine generated programmatically for evaluating SH basis for degree 2
-// inputs (x,y,z) are a point on the sphere (i.e., must be unit length)
-// output is vector b with SH basis evaluated at (x,y,z).
+// inputs (x, y, z) are a point on the sphere (i.e., must be unit length)
+// output is vector b with SH basis evaluated at (x, y, z).
 void sh_eval_basis_2(float3 v, out float b[9])
 {
 	// Reuse sh_eval_basis_1()
@@ -65,8 +65,8 @@ void sh_eval_basis_2(float3 v, out float b[9])
 }
 
 // routine generated programmatically for evaluating SH basis for degree 3
-// inputs (x,y,z) are a point on the sphere (i.e., must be unit length)
-// output is vector b with SH basis evaluated at (x,y,z).
+// inputs (x, y, z) are a point on the sphere (i.e., must be unit length)
+// output is vector b with SH basis evaluated at (x, y, z).
 void sh_eval_basis_3(float3 v, out float b[16])
 {
 	// Reuse sh_eval_basis_2()
@@ -86,29 +86,29 @@ void sh_eval_basis_3(float3 v, out float b[16])
 	const float c1 = v.x;
 	// l = 3
 	const float p_3_1 = -2.285228997322328800 * z2 + 0.457045799464465770;
-	b[11] = p_3_1 * s1; // l = 3,m = -1
-	b[13] = p_3_1 * c1; // l = 3,m = +1
+	b[11] = p_3_1 * s1; // l = 3, m = -1
+	b[13] = p_3_1 * c1; // l = 3, m = +1
 
 	// m = 2 //
 	const float s2 = v.x * s1 + v.y * c1;
 	const float c2 = v.x * c1 - v.y * s1;
 	// l = 3
 	const float p_3_2 = 1.445305721320277100 * v.z;
-	b[10] = p_3_2 * s2; // l = 3,m =- 2
-	b[14] = p_3_2 * c2; // l = 3,m =+ 2
+	b[10] = p_3_2 * s2; // l = 3, m =- 2
+	b[14] = p_3_2 * c2; // l = 3, m =+ 2
 
 	// m = 3 //
 	const float s3 = v.x * s2 + v.y * c2;
 	const float c3 = v.x * c2 - v.y * s2;
 	// l = 3
 	const float p_3_3 = -0.590043589926643520;
-	b[9] = p_3_3 * s3; // l = 3, m = -3
+	b[9] = p_3_3 * s3;  // l = 3, m = -3
 	b[15] = p_3_3 * c3; // l = 3, m = +3
 }
 
 // routine generated programmatically for evaluating SH basis for degree 4
-// inputs (x,y,z) are a point on the sphere (i.e., must be unit length)
-// output is vector b with SH basis evaluated at (x,y,z).
+// inputs (x, y, z) are a point on the sphere (i.e., must be unit length)
+// output is vector b with SH basis evaluated at (x, y, z).
 void sh_eval_basis_4(float3 v, out float b[25])
 {
 	// Reuse sh_eval_basis_3()
@@ -159,8 +159,8 @@ void sh_eval_basis_4(float3 v, out float b[25])
 }
 
 // routine generated programmatically for evaluating SH basis for degree 5
-// inputs (x,y,z) are a point on the sphere (i.e., must be unit length)
-// output is vector b with SH basis evaluated at (x,y,z).
+// inputs (x, y, z) are a point on the sphere (i.e., must be unit length)
+// output is vector b with SH basis evaluated at (x, y, z).
 void sh_eval_basis_5(float3 v, out float b[36])
 {
 	// Reuse sh_eval_basis_4()

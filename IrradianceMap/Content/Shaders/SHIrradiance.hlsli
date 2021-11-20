@@ -19,7 +19,7 @@ void LoadSH(out float3 shCoeffs[SH_NUM_COEFF], StructuredBuffer<float3> roSHCoef
 //--------------------------------------------------------------------------------------
 float3 EvaluateSHIrradiance(float3 shCoeffs[SH_NUM_COEFF], float3 norm)
 {
-	const float c1 = 0.42904276540489171563379376569857;	// 4 * A2.Y22 = 1/4 * sqrt(15.PI)
+	const float c1 = 0.42904276540489171563379376569857;	// 4 * A2.Y22 = 1/16 * sqrt(15.PI)
 	const float c2 = 0.51166335397324424423977581244463;	// 0.5 * A1.Y10 = 1/2 * sqrt(PI/3)
 	const float c3 = 0.24770795610037568833406429782001;	// A2.Y20 = 1/16 * sqrt(5.PI)
 	const float c4 = 0.88622692545275801364908374167057;	// A0.Y00 = 1/2 * sqrt(PI)

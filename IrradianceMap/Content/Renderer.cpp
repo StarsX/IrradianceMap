@@ -67,7 +67,7 @@ bool Renderer::Init(CommandList* pCommandList, uint32_t width, uint32_t height,
 		MemoryFlag::NONE, L"Depth");
 
 	// Temporal AA
-	for (auto& outViews : m_outputViews) outViews = Texture2D::MakeUnique();
+	for (auto& outView : m_outputViews) outView = Texture2D::MakeUnique();
 	m_outputViews[UAV_PP_TAA]->Create(m_device.get(), width, height, Format::R16G16B16A16_FLOAT, 1,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, false, MemoryFlag::NONE, L"TemporalAAOut0");
 	m_outputViews[UAV_PP_TAA1]->Create(m_device.get(), width, height, Format::R16G16B16A16_FLOAT, 1,
