@@ -96,8 +96,8 @@ protected:
 	std::vector<XUSG::DescriptorTable> m_uavTables[NUM_UAV_SRV];
 	XUSG::DescriptorTable	m_samplerTable;
 
-	XUSG::ShaderResource::sptr m_groundTruth;
-	std::vector<XUSG::ShaderResource::sptr> m_sources;
+	XUSG::Texture::sptr m_groundTruth;
+	std::vector<XUSG::Texture::sptr> m_sources;
 	XUSG::RenderTarget::uptr	m_irradiance;
 	XUSG::RenderTarget::uptr	m_radiance;
 

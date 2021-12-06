@@ -323,7 +323,7 @@ bool LightProbe::createPipelineLayouts()
 			m_pipelineLayoutCache.get(), PipelineLayoutFlag::NONE, L"SHSumLayout"), false);
 	}
 
-	// SH normalize
+	// SH normalization
 	{
 		const auto utilPipelineLayout = Util::PipelineLayout::MakeUnique();
 		utilPipelineLayout->SetRootUAV(0, 0);
@@ -465,7 +465,7 @@ bool LightProbe::createPipelines(Format rtFormat, bool typedUAV)
 		X_RETURN(m_pipelines[SH_SUM], state->GetPipeline(m_computePipelineCache.get(), L"SHSum"), false);
 	}
 
-	// SH sum
+	// SH normalization
 	{
 		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, csIndex, L"CSSHNormalize.cso"), false);
 
@@ -551,7 +551,7 @@ uint32_t LightProbe::generateMipsCompute(const CommandList* pCommandList, Resour
 {
 	auto numBarriers = m_radiance->SetBarrier(pBarriers,
 		ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE);
-	numBarriers = m_irradiance->AsTexture2D()->GenerateMips(pCommandList, pBarriers, 8, 8, 1,
+	numBarriers = m_irradiance->AsTexture()->GenerateMips(pCommandList, pBarriers, 8, 8, 1,
 		ResourceState::NON_PIXEL_SHADER_RESOURCE, m_pipelineLayouts[RESAMPLE_COMPUTE],
 		m_pipelines[RESAMPLE_COMPUTE], &m_uavTables[TABLE_RESAMPLE][1], 1, m_samplerTable,
 		0, numBarriers, &m_srvTables[TABLE_RESAMPLE][0], 2);
@@ -611,7 +611,7 @@ void LightProbe::upsampleCompute(const CommandList* pCommandList, ResourceBarrie
 		const auto c = numPasses - i;
 		const auto level = c - 1;
 		pCommandList->SetCompute32BitConstant(3, level);
-		numBarriers = m_irradiance->AsTexture2D()->Blit(pCommandList, pBarriers, 8, 8, 1, level, c,
+		numBarriers = m_irradiance->AsTexture()->Blit(pCommandList, pBarriers, 8, 8, 1, level, c,
 			ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE,
 			m_uavTables[TABLE_RESAMPLE][level], 1, numBarriers,
 			m_srvTables[TABLE_RESAMPLE][c], 2);
@@ -623,7 +623,7 @@ void LightProbe::upsampleCompute(const CommandList* pCommandList, ResourceBarrie
 	pCommandList->SetComputeRootConstantBufferView(3, m_cbImmutable.get());
 	pCommandList->SetCompute32BitConstant(3, 0);
 	pCommandList->SetPipelineState(m_pipelines[FINAL_C]);
-	numBarriers = m_irradiance->AsTexture2D()->Blit(pCommandList, pBarriers, 8, 8, 1, 0, 1,
+	numBarriers = m_irradiance->AsTexture()->Blit(pCommandList, pBarriers, 8, 8, 1, 0, 1,
 		ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE,
 		m_uavTables[TABLE_RESAMPLE][0], 1, numBarriers,
 		m_srvTables[TABLE_RESAMPLE][0], 2);
@@ -651,7 +651,7 @@ void LightProbe::generateRadianceCompute(const CommandList* pCommandList, uint8_
 	pCommandList->SetComputePipelineLayout(m_pipelineLayouts[GEN_RADIANCE_COMPUTE]);
 	pCommandList->SetComputeRootConstantBufferView(1, m_cbPerFrame.get(), m_cbPerFrame->GetCBVOffset(frameIndex));
 
-	m_radiance->AsTexture2D()->Blit(pCommandList, 8, 8, 1, m_uavTables[TABLE_RADIANCE][0], 2, 0,
+	m_radiance->AsTexture()->Blit(pCommandList, 8, 8, 1, m_uavTables[TABLE_RADIANCE][0], 2, 0,
 		m_srvTables[TABLE_RADIANCE][m_inputProbeIdx], 3, m_samplerTable, 0, m_pipelines[GEN_RADIANCE_COMPUTE]);
 }
 
