@@ -29,9 +29,9 @@ public:
 
 	void UpdateFrame(uint8_t frameIndex, DirectX::CXMVECTOR eyePt,
 		DirectX::CXMMATRIX viewProj, float glossy, bool isPaused);
-	void Render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, XUSG::ResourceBarrier* barriers,
+	void Render(XUSG::CommandList* pCommandList, uint8_t frameIndex, XUSG::ResourceBarrier* barriers,
 		uint32_t numBarriers = 0, RenderMode mode = MIP_APPROX, bool needClear = false);
-	void Postprocess(const XUSG::CommandList* pCommandList, const XUSG::Descriptor& rtv,
+	void Postprocess(XUSG::CommandList* pCommandList, const XUSG::Descriptor& rtv,
 		uint32_t numBarriers, XUSG::ResourceBarrier* pBarriers);
 
 	static const uint8_t FrameCount = 3;
@@ -103,9 +103,9 @@ protected:
 	bool createPipelines(XUSG::Format rtFormat);
 	bool createDescriptorTables();
 
-	void render(const XUSG::CommandList* pCommandList, uint8_t frameIndex, RenderMode mode, bool needClear);
+	void render(XUSG::CommandList* pCommandList, uint8_t frameIndex, RenderMode mode, bool needClear);
 	void environment(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
-	void temporalAA(const XUSG::CommandList* pCommandList);
+	void temporalAA(XUSG::CommandList* pCommandList);
 
 	XUSG::Device::sptr m_device;
 

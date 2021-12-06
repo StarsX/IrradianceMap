@@ -211,7 +211,7 @@ void Renderer::UpdateFrame(uint8_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewPr
 	m_frameParity = !m_frameParity;
 }
 
-void Renderer::Render(const CommandList* pCommandList, uint8_t frameIndex, ResourceBarrier* barriers,
+void Renderer::Render(CommandList* pCommandList, uint8_t frameIndex, ResourceBarrier* barriers,
 	uint32_t numBarriers, RenderMode mode, bool needClear)
 {
 	numBarriers = m_renderTargets[RT_COLOR]->SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
@@ -231,7 +231,7 @@ void Renderer::Render(const CommandList* pCommandList, uint8_t frameIndex, Resou
 	temporalAA(pCommandList);
 }
 
-void Renderer::Postprocess(const CommandList* pCommandList, const Descriptor& rtv,
+void Renderer::Postprocess(CommandList* pCommandList, const Descriptor& rtv,
 	uint32_t numBarriers, ResourceBarrier* pBarriers)
 {
 	numBarriers = m_outputViews[UAV_PP_TAA + m_frameParity]->SetBarrier(
@@ -504,7 +504,7 @@ bool Renderer::createDescriptorTables()
 	return true;
 }
 
-void Renderer::render(const CommandList* pCommandList, uint8_t frameIndex, RenderMode mode, bool needClear)
+void Renderer::render(CommandList* pCommandList, uint8_t frameIndex, RenderMode mode, bool needClear)
 {
 	// Set framebuffer
 	pCommandList->OMSetFramebuffer(m_framebuffer);
@@ -560,7 +560,7 @@ void Renderer::environment(const CommandList* pCommandList, uint8_t frameIndex)
 	pCommandList->Draw(3, 1, 0, 0);
 }
 
-void Renderer::temporalAA(const CommandList* pCommandList)
+void Renderer::temporalAA(CommandList* pCommandList)
 {
 	// Bind the heaps, acceleration structure and dispatch rays.
 	const DescriptorPool descriptorPools[] =

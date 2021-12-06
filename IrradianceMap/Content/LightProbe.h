@@ -29,7 +29,7 @@ public:
 		uint32_t numFiles, bool typedUAV);
 
 	void UpdateFrame(double time, uint8_t frameIndex);
-	void Process(const XUSG::CommandList* pCommandList, uint8_t frameIndex, PipelineType pipelineType);
+	void Process(XUSG::CommandList* pCommandList, uint8_t frameIndex, PipelineType pipelineType);
 
 	const XUSG::ShaderResource* GetIrradianceGT(XUSG::CommandList* pCommandList,
 		const wchar_t* fileName = nullptr, std::vector<XUSG::Resource::uptr>* pUploaders = nullptr);
@@ -70,16 +70,16 @@ protected:
 	bool createPipelines(XUSG::Format rtFormat, bool typedUAV);
 	bool createDescriptorTables();
 
-	uint32_t generateMipsGraphics(const XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers);
-	uint32_t generateMipsCompute(const XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers);
+	uint32_t generateMipsGraphics(XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers);
+	uint32_t generateMipsCompute(XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers);
 
-	void upsampleGraphics(const XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers, uint32_t numBarriers);
-	void upsampleCompute(const XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers, uint32_t numBarriers);
-	void generateRadianceGraphics(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
-	void generateRadianceCompute(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
-	void shCubeMap(const XUSG::CommandList* pCommandList, uint8_t order);
-	void shSum(const XUSG::CommandList* pCommandList, uint8_t order);
-	void shNormalize(const XUSG::CommandList* pCommandList, uint8_t order);
+	void upsampleGraphics(XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers, uint32_t numBarriers);
+	void upsampleCompute(XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers, uint32_t numBarriers);
+	void generateRadianceGraphics(XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void generateRadianceCompute(XUSG::CommandList* pCommandList, uint8_t frameIndex);
+	void shCubeMap(XUSG::CommandList* pCommandList, uint8_t order);
+	void shSum(XUSG::CommandList* pCommandList, uint8_t order);
+	void shNormalize(XUSG::CommandList* pCommandList, uint8_t order);
 	
 	XUSG::Device::sptr m_device;
 

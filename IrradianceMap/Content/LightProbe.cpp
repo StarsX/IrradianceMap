@@ -126,7 +126,7 @@ void LightProbe::UpdateFrame(double time, uint8_t frameIndex)
 	}
 }
 
-void LightProbe::Process(const CommandList* pCommandList, uint8_t frameIndex, PipelineType pipelineType)
+void LightProbe::Process(CommandList* pCommandList, uint8_t frameIndex, PipelineType pipelineType)
 {
 	// Set Descriptor pools
 	const DescriptorPool descriptorPools[] =
@@ -538,7 +538,7 @@ bool LightProbe::createDescriptorTables()
 	return true;
 }
 
-uint32_t LightProbe::generateMipsGraphics(const CommandList* pCommandList, ResourceBarrier* pBarriers)
+uint32_t LightProbe::generateMipsGraphics(CommandList* pCommandList, ResourceBarrier* pBarriers)
 {
 	const auto numBarriers = m_radiance->SetBarrier(pBarriers, ResourceState::PIXEL_SHADER_RESOURCE);
 	return m_irradiance->GenerateMips(pCommandList, pBarriers,
@@ -547,7 +547,7 @@ uint32_t LightProbe::generateMipsGraphics(const CommandList* pCommandList, Resou
 		1, m_samplerTable, 0, numBarriers);
 }
 
-uint32_t LightProbe::generateMipsCompute(const CommandList* pCommandList, ResourceBarrier* pBarriers)
+uint32_t LightProbe::generateMipsCompute(CommandList* pCommandList, ResourceBarrier* pBarriers)
 {
 	auto numBarriers = m_radiance->SetBarrier(pBarriers,
 		ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE);
@@ -567,7 +567,7 @@ uint32_t LightProbe::generateMipsCompute(const CommandList* pCommandList, Resour
 	return numBarriers;
 }
 
-void LightProbe::upsampleGraphics(const CommandList* pCommandList, ResourceBarrier* pBarriers, uint32_t numBarriers)
+void LightProbe::upsampleGraphics(CommandList* pCommandList, ResourceBarrier* pBarriers, uint32_t numBarriers)
 {
 	// Up sampling
 	pCommandList->SetGraphicsPipelineLayout(m_pipelineLayouts[UP_SAMPLE_BLEND]);
@@ -597,7 +597,7 @@ void LightProbe::upsampleGraphics(const CommandList* pCommandList, ResourceBarri
 		1, numBarriers, 0, 0, SizeOfInUint32(uint32_t));
 }
 
-void LightProbe::upsampleCompute(const CommandList* pCommandList, ResourceBarrier* pBarriers, uint32_t numBarriers)
+void LightProbe::upsampleCompute(CommandList* pCommandList, ResourceBarrier* pBarriers, uint32_t numBarriers)
 {
 	// Up sampling
 	pCommandList->SetComputePipelineLayout(m_pipelineLayouts[UP_SAMPLE_INPLACE]);
@@ -629,7 +629,7 @@ void LightProbe::upsampleCompute(const CommandList* pCommandList, ResourceBarrie
 		m_srvTables[TABLE_RESAMPLE][0], 2);
 }
 
-void LightProbe::generateRadianceGraphics(const CommandList* pCommandList, uint8_t frameIndex)
+void LightProbe::generateRadianceGraphics(CommandList* pCommandList, uint8_t frameIndex)
 {
 	ResourceBarrier barrier;
 	const auto numBarriers = m_radiance->SetBarrier(&barrier, ResourceState::RENDER_TARGET);
@@ -642,7 +642,7 @@ void LightProbe::generateRadianceGraphics(const CommandList* pCommandList, uint8
 		m_samplerTable, 0, m_pipelines[GEN_RADIANCE_GRAPHICS]);
 }
 
-void LightProbe::generateRadianceCompute(const CommandList* pCommandList, uint8_t frameIndex)
+void LightProbe::generateRadianceCompute(CommandList* pCommandList, uint8_t frameIndex)
 {
 	ResourceBarrier barrier;
 	const auto numBarriers = m_radiance->SetBarrier(&barrier, ResourceState::UNORDERED_ACCESS);
@@ -655,7 +655,7 @@ void LightProbe::generateRadianceCompute(const CommandList* pCommandList, uint8_
 		m_srvTables[TABLE_RADIANCE][m_inputProbeIdx], 3, m_samplerTable, 0, m_pipelines[GEN_RADIANCE_COMPUTE]);
 }
 
-void LightProbe::shCubeMap(const CommandList* pCommandList, uint8_t order)
+void LightProbe::shCubeMap(CommandList* pCommandList, uint8_t order)
 {
 	assert(order <= SH_MAX_ORDER);
 	ResourceBarrier barrier;
@@ -677,7 +677,7 @@ void LightProbe::shCubeMap(const CommandList* pCommandList, uint8_t order)
 	pCommandList->Dispatch(DIV_UP(m_numSHTexels, SH_GROUP_SIZE), 1, 1);
 }
 
-void LightProbe::shSum(const CommandList* pCommandList, uint8_t order)
+void LightProbe::shSum(CommandList* pCommandList, uint8_t order)
 {
 	assert(order <= SH_MAX_ORDER);
 	ResourceBarrier barriers[4];
@@ -712,7 +712,7 @@ void LightProbe::shSum(const CommandList* pCommandList, uint8_t order)
 	}
 }
 
-void LightProbe::shNormalize(const CommandList* pCommandList, uint8_t order)
+void LightProbe::shNormalize(CommandList* pCommandList, uint8_t order)
 {
 	assert(order <= SH_MAX_ORDER);
 	ResourceBarrier barriers[3];
