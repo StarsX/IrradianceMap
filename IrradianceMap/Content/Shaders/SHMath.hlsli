@@ -2,7 +2,8 @@
 // Copyright (c) XU, Tianchen. All rights reserved.
 //--------------------------------------------------------------------------------------
 
-#define SH_MAX_ORDER 6
+#include "SHSharedConsts.h"
+
 #define SH_MAX_COEFF (SH_MAX_ORDER * SH_MAX_ORDER)
 #define SH_EVAL_BASIS(n, d, dir, result) float r[(n * n)]; sh_eval_basis_##d(dir, r); [unroll] for (uint i = 0; i < (n * n); ++i) result[i] = r[i]
 #define CASE_SH_EVAL_BASIS(order, degree) case order: { SH_EVAL_BASIS(order, degree, dir, result); break; }

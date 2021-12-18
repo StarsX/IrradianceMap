@@ -17,8 +17,10 @@ RWStructuredBuffer<float> g_rwWeight;
 
 SamplerState g_sampler;
 
-[numthreads(32, 1, 1)]
-void main(uint DTid : SV_DispatchThreadID, uint Gid : SV_GroupID)
+groupshared float4 g_smem[SH_WAVE_SIZE];
+
+[numthreads(SH_GROUP_SIZE, 1, 1)]
+void main(uint DTid : SV_DispatchThreadID, uint GTid : SV_GroupThreadID, uint Gid : SV_GroupID)
 {
 	uint3 idx;
 	const uint sliceSize = g_mapSize * g_mapSize;
@@ -43,8 +45,19 @@ void main(uint DTid : SV_DispatchThreadID, uint Gid : SV_GroupID)
 	const float2 uv = idx.xy * s + b;
 	const float diff = 1.0 + dot(uv, uv);
 	const float diffSolid = 4.0 / (diff * sqrt(diff));
-	const float wt = WaveActiveSum(diffSolid);
-	if (WaveIsFirstLane()) g_rwWeight[Gid] = wt;
+	float wt = WaveActiveSum(diffSolid);
+#if SH_GROUP_SIZE > SH_WAVE_SIZE
+	if (WaveIsFirstLane()) g_smem[GTid / WaveGetLaneCount()].w = wt;
+
+	GroupMemoryBarrierWithGroupSync();
+
+	if (GTid < WaveGetLaneCount())
+	{
+		wt = g_smem[GTid].w;
+		wt = WaveActiveSum(wt);
+	}
+#endif
+	if (GTid == 0) g_rwWeight[Gid] = wt;
 
 	float shBuff[SH_MAX_COEFF];
 	float3 shBuffB[SH_MAX_COEFF];
@@ -52,9 +65,21 @@ void main(uint DTid : SV_DispatchThreadID, uint Gid : SV_GroupID)
 
 	const uint n = g_order * g_order;
 	SHScale(shBuffB, g_order, shBuff, color * diffSolid);
+
 	for (uint i = 0; i < n; ++i)
 	{
-		const float3 sh = WaveActiveSum(shBuffB[i]);
-		if (WaveIsFirstLane()) g_rwSHBuff[GetLocation(n, uint2(Gid, i))] = sh;
+		float3 sh = WaveActiveSum(shBuffB[i]);
+#if SH_GROUP_SIZE > SH_WAVE_SIZE
+		if (WaveIsFirstLane()) g_smem[GTid / WaveGetLaneCount()].xyz = sh;
+			
+		GroupMemoryBarrierWithGroupSync();
+
+		if (GTid < WaveGetLaneCount())
+		{
+			sh = g_smem[GTid].xyz;
+			sh = WaveActiveSum(sh);
+		}
+#endif
+		if (GTid == 0) g_rwSHBuff[GetLocation(n, uint2(Gid, i))] = sh;
 	}
 }
