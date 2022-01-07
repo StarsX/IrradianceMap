@@ -51,7 +51,7 @@ bool LightProbe::Init(CommandList* pCommandList, uint32_t width, uint32_t height
 			8192, false, m_sources[i], uploaders.back().get(), &alphaMode), false);
 
 		texWidth = (max)(static_cast<uint32_t>(m_sources[i]->GetWidth()), texWidth);
-		texHeight = (max)(dynamic_pointer_cast<Texture2D, ShaderResource>(m_sources[i])->GetHeight(), texHeight);
+		texHeight = (max)(m_sources[i]->GetHeight(), texHeight);
 	}
 
 	// Create resources and pipelines
