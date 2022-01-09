@@ -68,9 +68,9 @@ SamplerState g_smpLinear;
 //--------------------------------------------------------------------------------------
 HALF3 rgbToYCoCg(HALF3 rgb)
 {
-	const min16float y = dot(rgb, HALF3(1.0, 2.0, 1.0));
-	const min16float co = dot(rgb, HALF3(2.0, 0.0, -2.0));
-	const min16float cg = dot(rgb, HALF3(-1.0, 2.0, -1.0));
+	const HALF y = dot(rgb, HALF3(1.0, 2.0, 1.0));
+	const HALF co = dot(rgb, HALF3(2.0, 0.0, -2.0));
+	const HALF cg = dot(rgb, HALF3(-1.0, 2.0, -1.0));
 
 	return HALF3(y, co, cg);
 }
@@ -80,13 +80,13 @@ HALF3 rgbToYCoCg(HALF3 rgb)
 //--------------------------------------------------------------------------------------
 HALF3 yCoCgToRGB(HALF3 yCoCg)
 {
-	const min16float y = yCoCg.x * 0.25;
-	const min16float co = yCoCg.y * 0.25;
-	const min16float cg = yCoCg.z * 0.25;
+	const HALF y = yCoCg.x * 0.25;
+	const HALF co = yCoCg.y * 0.25;
+	const HALF cg = yCoCg.z * 0.25;
 
-	const min16float r = y + co - cg;
-	const min16float g = y + cg;
-	const min16float b = y - co - cg;
+	const HALF r = y + co - cg;
+	const HALF g = y + cg;
+	const HALF b = y - co - cg;
 
 	return HALF3(r, g, b);
 }
@@ -243,7 +243,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
 	// Speed to history blur
 	const float2 historyBlurAmp = 4.0 * texSize;
 	const HALF2 historyBlurs = HALF2(abs(velocity.xy) * historyBlurAmp);
-	HALF curHistoryBlur = saturate(historyBlurs.x + historyBlurs.y);
+	HALF curHistoryBlur = historyBlurs.x + historyBlurs.y;
 
 	// Evaluate history weight that indicates the convergence from metadata
 	HALF historyBlur = HALF(1.0 - history.w);
@@ -255,6 +255,8 @@ void main(uint2 DTid : SV_DispatchThreadID)
 	const HALF4 currentTM = HALF4(TM(current.xyz), current.w);
 #ifdef _FORCE_TIGHT_CLIP_
 	const HALF gamma = 1.0;
+#elif defined(_DENOISE_)
+	const HALF gamma = current.w <= 0.0 ? 1.0 : clamp(8.0 / historyBlur, 1.0, 32.0);
 #elif defined(_ALPHA_AS_ID_)
 	const HALF gamma = historyBlur > 0.0 || current.w <= 0.0 ? 1.0 : 16.0;
 #else
@@ -262,6 +264,10 @@ void main(uint2 DTid : SV_DispatchThreadID)
 #endif
 	HALF4 filtered = NeighborMinMax(neighborMin, neighborMax, currentTM, DTid, gamma);
 	
+	// Saturate history blurs
+	curHistoryBlur = saturate(curHistoryBlur);
+	historyBlur = saturate(historyBlur);
+
 	// Clip historical color
 	HALF3 historyTM = TM(history.xyz);
 #if _USE_YCOCG_
