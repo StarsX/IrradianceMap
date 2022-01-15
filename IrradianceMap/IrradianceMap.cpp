@@ -96,7 +96,7 @@ void IrradianceMap::LoadPipeline()
 		dxgiAdapter = nullptr;
 		ThrowIfFailed(factory->EnumAdapters1(i, &dxgiAdapter));
 
-		m_device = Device::MakeShared();
+		m_device = Device::MakeUnique();
 		hr = m_device->Create(dxgiAdapter.get(), D3D_FEATURE_LEVEL_11_0);
 	}
 
@@ -161,7 +161,7 @@ void IrradianceMap::LoadAssets()
 	N_RETURN(pCommandList->Create(m_device.get(), 0, CommandListType::DIRECT,
 		m_commandAllocators[m_frameIndex].get(), nullptr), ThrowIfFailed(E_FAIL));
 
-	m_lightProbe = make_unique<LightProbe>(m_device);
+	m_lightProbe = make_unique<LightProbe>();
 	if (!m_lightProbe) ThrowIfFailed(E_FAIL);
 
 	shared_ptr<ShaderResource::sptr> source;
@@ -170,7 +170,7 @@ void IrradianceMap::LoadAssets()
 		m_envFileNames.data(), static_cast<uint32_t>(m_envFileNames.size()), m_typedUAV))
 		ThrowIfFailed(E_FAIL);
 
-	m_renderer = make_unique<Renderer>(m_device);
+	m_renderer = make_unique<Renderer>();
 	if (!m_renderer) ThrowIfFailed(E_FAIL);
 
 	if (!m_renderer->Init(pCommandList, m_width, m_height, m_descriptorTableCache,

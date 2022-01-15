@@ -24,14 +24,10 @@ struct CBPerFrame
 	XMFLOAT4X4	ScreenToWorld;
 };
 
-Renderer::Renderer(const Device::sptr& device) :
-	m_device(device),
+Renderer::Renderer() :
 	m_frameParity(0)
 {
 	m_shaderPool = ShaderPool::MakeUnique();
-	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(device.get());
-	m_computePipelineCache = Compute::PipelineCache::MakeUnique(device.get());
-	m_pipelineLayoutCache = PipelineLayoutCache::MakeUnique(device.get());
 }
 
 Renderer::~Renderer()
@@ -42,6 +38,10 @@ bool Renderer::Init(CommandList* pCommandList, uint32_t width, uint32_t height,
 	const DescriptorTableCache::sptr& descriptorTableCache, vector<Resource::uptr>& uploaders,
 	const char* fileName, Format rtFormat, const XMFLOAT4& posScale)
 {
+	const auto pDevice = pCommandList->GetDevice();
+	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(pDevice);
+	m_computePipelineCache = Compute::PipelineCache::MakeUnique(pDevice);
+	m_pipelineLayoutCache = PipelineLayoutCache::MakeUnique(pDevice);
 	m_descriptorTableCache = descriptorTableCache;
 
 	m_viewport = XMUINT2(width, height);
@@ -56,30 +56,30 @@ bool Renderer::Init(CommandList* pCommandList, uint32_t width, uint32_t height,
 	// Create output views
 	// Render targets
 	for (auto& renderTarget : m_renderTargets) renderTarget = RenderTarget::MakeUnique();
-	m_renderTargets[RT_COLOR]->Create(m_device.get(), width, height, Format::R16G16B16A16_FLOAT,
+	m_renderTargets[RT_COLOR]->Create(pDevice, width, height, Format::R16G16B16A16_FLOAT,
 		1, ResourceFlag::NONE, 1, 1, nullptr, false, MemoryFlag::NONE, L"Color");
-	m_renderTargets[RT_VELOCITY]->Create(m_device.get(), width, height, Format::R16G16_FLOAT,
+	m_renderTargets[RT_VELOCITY]->Create(pDevice, width, height, Format::R16G16_FLOAT,
 		1, ResourceFlag::NONE, 1, 1, nullptr, false, MemoryFlag::NONE, L"Velocity");
 
 	m_depth = DepthStencil::MakeUnique();
-	m_depth->Create(m_device.get(), width, height, Format::D24_UNORM_S8_UINT,
+	m_depth->Create(pDevice, width, height, Format::D24_UNORM_S8_UINT,
 		ResourceFlag::DENY_SHADER_RESOURCE, 1, 1, 1, 1.0f, 0, false,
 		MemoryFlag::NONE, L"Depth");
 
 	// Temporal AA
 	for (auto& outView : m_outputViews) outView = Texture2D::MakeUnique();
-	m_outputViews[UAV_PP_TAA]->Create(m_device.get(), width, height, Format::R16G16B16A16_FLOAT, 1,
+	m_outputViews[UAV_PP_TAA]->Create(pDevice, width, height, Format::R16G16B16A16_FLOAT, 1,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, false, MemoryFlag::NONE, L"TemporalAAOut0");
-	m_outputViews[UAV_PP_TAA1]->Create(m_device.get(), width, height, Format::R16G16B16A16_FLOAT, 1,
+	m_outputViews[UAV_PP_TAA1]->Create(pDevice, width, height, Format::R16G16B16A16_FLOAT, 1,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, false, MemoryFlag::NONE, L"TemporalAAOut1");
 
 	// Create constant buffers
 	m_cbBasePass = ConstantBuffer::MakeUnique();
-	N_RETURN(m_cbBasePass->Create(m_device.get(), sizeof(CBBasePass[FrameCount]), FrameCount,
+	N_RETURN(m_cbBasePass->Create(pDevice, sizeof(CBBasePass[FrameCount]), FrameCount,
 		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"CBBasePass"), false);
 
 	m_cbPerFrame = ConstantBuffer::MakeUnique();
-	N_RETURN(m_cbPerFrame->Create(m_device.get(), sizeof(CBPerFrame[FrameCount]), FrameCount,
+	N_RETURN(m_cbPerFrame->Create(pDevice, sizeof(CBPerFrame[FrameCount]), FrameCount,
 		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"CBPerFrame"), false);
 
 	// Create pipelines
@@ -263,7 +263,7 @@ bool Renderer::createVB(CommandList* pCommandList, uint32_t numVert,
 	uint32_t stride, const uint8_t* pData, vector<Resource::uptr>& uploaders)
 {
 	m_vertexBuffer = VertexBuffer::MakeUnique();
-	N_RETURN(m_vertexBuffer->Create(m_device.get(), numVert, stride,
+	N_RETURN(m_vertexBuffer->Create(pCommandList->GetDevice(), numVert, stride,
 		ResourceFlag::NONE, MemoryType::DEFAULT, 1, nullptr, 1, nullptr,
 		1, nullptr, MemoryFlag::NONE, L"MeshVB"), false);
 	uploaders.emplace_back(Resource::MakeUnique());
@@ -278,7 +278,7 @@ bool Renderer::createIB(CommandList* pCommandList, uint32_t numIndices,
 
 	const uint32_t byteWidth = sizeof(uint32_t) * numIndices;
 	m_indexBuffer = IndexBuffer::MakeUnique();
-	N_RETURN(m_indexBuffer->Create(m_device.get(), byteWidth, Format::R32_UINT, ResourceFlag::NONE,
+	N_RETURN(m_indexBuffer->Create(pCommandList->GetDevice(), byteWidth, Format::R32_UINT, ResourceFlag::NONE,
 		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, 1, nullptr, MemoryFlag::NONE, L"MeshIB"), false);
 	uploaders.emplace_back(Resource::MakeUnique());
 

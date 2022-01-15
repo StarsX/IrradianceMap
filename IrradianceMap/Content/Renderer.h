@@ -16,7 +16,7 @@ public:
 		GROUND_TRUTH
 	};
 
-	Renderer(const XUSG::Device::sptr& device);
+	Renderer();
 	virtual ~Renderer();
 
 	bool Init(XUSG::CommandList* pCommandList, uint32_t width, uint32_t height,
@@ -106,8 +106,6 @@ protected:
 	void render(XUSG::CommandList* pCommandList, uint8_t frameIndex, RenderMode mode, bool needClear);
 	void environment(const XUSG::CommandList* pCommandList, uint8_t frameIndex);
 	void temporalAA(XUSG::CommandList* pCommandList);
-
-	XUSG::Device::sptr m_device;
 
 	uint32_t	m_numIndices;
 	uint8_t		m_frameParity;

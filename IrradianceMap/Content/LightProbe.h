@@ -20,7 +20,7 @@ public:
 		NUM_PIPE_TYPE
 	};
 
-	LightProbe(const XUSG::Device::sptr &device);
+	LightProbe();
 	virtual ~LightProbe();
 
 	bool Init(XUSG::CommandList* pCommandList, uint32_t width, uint32_t height,
@@ -80,8 +80,6 @@ protected:
 	void shCubeMap(XUSG::CommandList* pCommandList, uint8_t order);
 	void shSum(XUSG::CommandList* pCommandList, uint8_t order);
 	void shNormalize(XUSG::CommandList* pCommandList, uint8_t order);
-	
-	XUSG::Device::sptr m_device;
 
 	XUSG::ShaderPool::uptr				m_shaderPool;
 	XUSG::Graphics::PipelineCache::uptr	m_graphicsPipelineCache;
