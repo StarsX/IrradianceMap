@@ -24,7 +24,16 @@ typedef min16float4	HALF4;
 #define NUM_SAMPLES		(NUM_NEIGHBORS + 1)
 #define NUM_NEIGHBORS_H	4
 
+#ifndef ALPHA_BOUND
+#define ALPHA_BOUND		0.5
+#endif
+
+// Use YCoCg dependently
+#if	_USE_YCOCG_
+#define GET_LUMA4(v)	((v).x)
+#else
 #define GET_LUMA4(v)	dot(v, g_luma4Base)
+#endif
 
 //--------------------------------------------------------------------------------------
 // Constants
@@ -109,7 +118,7 @@ HALF3 TM(float3 hdr)
 //--------------------------------------------------------------------------------------
 HALF3 ITM(HALF3 color)
 {
-	color *= 4.0 / max(1.0 - GET_LUMA4(color), 1e-4);
+	color *= 4.0 / (1.0 - GET_LUMA4(color));
 
 #if _USE_YCOCG_
 	return yCoCgToRGB(color);
@@ -169,7 +178,7 @@ HALF4 NeighborMinMax(out HALF4 neighborMin, out HALF4 neighborMax,
 		neighbors[i] = g_txCurrent[pos + g_texOffsets[i]];
 
 	HALF3 mu = current.xyz;
-	current.w = current.w < 0.5 ? 0.0 : 1.0;
+	current.w = current.w < ALPHA_BOUND ? 0.0 : 1.0;
 
 #if	_VARIANCE_AABB_
 #define	m1	mu
@@ -253,14 +262,12 @@ void main(uint2 DTid : SV_DispatchThreadID)
 	// Compute color-space AABB
 	HALF4 neighborMin, neighborMax;
 	const HALF4 currentTM = HALF4(TM(current.xyz), current.w);
-#ifdef _FORCE_TIGHT_CLIP_
-	const HALF gamma = 1.0;
-#elif defined(_DENOISE_)
+#if defined(_DENOISE_)
 	const HALF gamma = current.w <= 0.0 ? 1.0 : clamp(8.0 / historyBlur, 1.0, 32.0);
 #elif defined(_ALPHA_AS_ID_)
 	const HALF gamma = historyBlur > 0.0 || current.w <= 0.0 ? 1.0 : 16.0;
 #else
-	const HALF gamma = historyBlur > 0.0 || current.w < 1.0 ? 1.0 : 16.0;
+	const HALF gamma = historyBlur > 0.0 || current.w < ALPHA_BOUND ? 1.0 : 16.0;
 #endif
 	HALF4 filtered = NeighborMinMax(neighborMin, neighborMax, currentTM, DTid, gamma);
 	
@@ -299,6 +306,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
 	HALF blend = 0.25 / lerp(8.0, distToClamp + contrast, historyAmt);
 #endif
 	blend = min(blend, 0.25);
+	blend = filtered.w > 0.0 ? blend : 1.0;
 
 	HALF3 result = ITM(lerp(historyTM, filtered.xyz, blend));
 	result = any(isnan(result)) ? ITM(filtered.xyz) : result;
