@@ -56,7 +56,7 @@ bool LightProbe::Init(CommandList* pCommandList, uint32_t width, uint32_t height
 
 	// Create resources and pipelines
 	CBImmutable cb;
-	cb.NumLevels = max<uint32_t>(Log2((max)(texWidth, texHeight)), 1) + 1;
+	cb.NumLevels = CalculateMipLevels(texWidth, texHeight);
 	cb.MapSize = (texWidth + texHeight) * 0.5f;
 
 	const auto format = Format::R11G11B10_FLOAT;
