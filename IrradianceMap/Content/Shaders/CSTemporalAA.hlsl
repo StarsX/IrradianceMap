@@ -178,6 +178,9 @@ HALF4 NeighborMinMax(out HALF4 neighborMin, out HALF4 neighborMax,
 		neighbors[i] = g_txCurrent[pos + g_texOffsets[i]];
 
 	HALF3 mu = current.xyz;
+#if _VARIANCE_AABB_ && defined(_DENOISER_) && defined(_ALPHA_AS_ID_)
+	const HALF idMask = current.w;
+#endif
 	current.w = current.w < ALPHA_BOUND ? 0.0 : 1.0;
 
 #if	_VARIANCE_AABB_
@@ -192,7 +195,7 @@ HALF4 NeighborMinMax(out HALF4 neighborMin, out HALF4 neighborMax,
 	{
 		HALF4 neighbor;
 		neighbor.xyz = TM(neighbors[i].xyz);
-		neighbor.w = neighbors[i].w < 0.5 ? 0.0 : 1.0;
+		neighbor.w = neighbors[i].w < ALPHA_BOUND ? 0.0 : 1.0;
 		current += neighbor * weights[i];
 
 #if	_VARIANCE_AABB_
@@ -204,12 +207,19 @@ HALF4 NeighborMinMax(out HALF4 neighborMin, out HALF4 neighborMax,
 #endif
 	}
 
+	current /= 4.0;
+
 #if	_VARIANCE_AABB_
+#if defined(_DENOISER_) && defined(_ALPHA_AS_ID_)
+	gamma = abs(idMask - current.w) < 1.0 / 255.0 ? gamma : 1.0;
+#endif
 	mu /= NUM_SAMPLES;
 	const HALF3 sigma = sqrt(abs(m2 / NUM_SAMPLES - mu * mu));
 	const HALF3 gsigma = gamma * sigma;
 	neighborMin.xyz = mu - gsigma;
 	neighborMax.xyz = mu + gsigma;
+	neighborMin.xyz = min(neighborMin.xyz, current.xyz);
+	neighborMax.xyz = max(neighborMax.xyz, current.xyz);
 	neighborMin.w = GET_LUMA4(mu - sigma);
 	neighborMax.w = GET_LUMA4(mu + sigma);
 #else
@@ -217,7 +227,7 @@ HALF4 NeighborMinMax(out HALF4 neighborMin, out HALF4 neighborMax,
 	neighborMax.w = GET_LUMA4(neighborMax.xyz);
 #endif
 
-	return current / 4.0;
+	return current;
 }
 
 //--------------------------------------------------------------------------------------
@@ -262,7 +272,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
 	// Compute color-space AABB
 	HALF4 neighborMin, neighborMax;
 	const HALF4 currentTM = HALF4(TM(current.xyz), current.w);
-#if defined(_DENOISE_)
+#ifdef _DENOISE_
 	const HALF gamma = current.w <= 0.0 ? 1.0 : clamp(8.0 / historyBlur, 1.0, 32.0);
 #elif defined(_ALPHA_AS_ID_)
 	const HALF gamma = historyBlur > 0.0 || current.w <= 0.0 ? 1.0 : 16.0;
