@@ -196,7 +196,9 @@ HALF4 NeighborMinMax(out HALF4 neighborMin, out HALF4 neighborMax,
 	{
 		HALF4 neighbor;
 		neighbor.xyz = TM(neighbors[i].xyz);
-#ifndef _ALPHA_AS_ID_
+#ifdef _ALPHA_AS_ID_
+		neighbor.w = HALF(neighbors[i].w);
+#else
 		neighbor.w = neighbors[i].w < ALPHA_BOUND ? 0.0 : 1.0;
 #endif
 		current += neighbor * weights[i];
