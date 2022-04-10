@@ -50,8 +50,8 @@ bool Renderer::Init(CommandList* pCommandList, uint32_t width, uint32_t height,
 	// Load inputs
 	ObjLoader objLoader;
 	if (!objLoader.Import(fileName, true, true)) return false;
-	N_RETURN(createVB(pCommandList, objLoader.GetNumVertices(), objLoader.GetVertexStride(), objLoader.GetVertices(), uploaders), false);
-	N_RETURN(createIB(pCommandList, objLoader.GetNumIndices(), objLoader.GetIndices(), uploaders), false);
+	XUSG_N_RETURN(createVB(pCommandList, objLoader.GetNumVertices(), objLoader.GetVertexStride(), objLoader.GetVertices(), uploaders), false);
+	XUSG_N_RETURN(createIB(pCommandList, objLoader.GetNumIndices(), objLoader.GetIndices(), uploaders), false);
 
 	// Create output views
 	// Render targets
@@ -75,18 +75,18 @@ bool Renderer::Init(CommandList* pCommandList, uint32_t width, uint32_t height,
 
 	// Create constant buffers
 	m_cbBasePass = ConstantBuffer::MakeUnique();
-	N_RETURN(m_cbBasePass->Create(pDevice, sizeof(CBBasePass[FrameCount]), FrameCount,
+	XUSG_N_RETURN(m_cbBasePass->Create(pDevice, sizeof(CBBasePass[FrameCount]), FrameCount,
 		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"CBBasePass"), false);
 
 	m_cbPerFrame = ConstantBuffer::MakeUnique();
-	N_RETURN(m_cbPerFrame->Create(pDevice, sizeof(CBPerFrame[FrameCount]), FrameCount,
+	XUSG_N_RETURN(m_cbPerFrame->Create(pDevice, sizeof(CBPerFrame[FrameCount]), FrameCount,
 		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"CBPerFrame"), false);
 
 	// Create pipelines
-	N_RETURN(createInputLayout(), false);
-	N_RETURN(createPipelineLayouts(), false);
-	N_RETURN(createPipelines(rtFormat), false);
-	N_RETURN(createDescriptorTables(), false);
+	XUSG_N_RETURN(createInputLayout(), false);
+	XUSG_N_RETURN(createPipelineLayouts(), false);
+	XUSG_N_RETURN(createPipelines(rtFormat), false);
+	XUSG_N_RETURN(createDescriptorTables(), false);
 
 	return true;
 }
@@ -96,7 +96,7 @@ bool Renderer::SetLightProbes(const Descriptor& irradiance, const Descriptor& ra
 	const Descriptor descriptors[] = { radiance, irradiance };
 	const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 	descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-	X_RETURN(m_srvTables[SRV_TABLE_BASE], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+	XUSG_X_RETURN(m_srvTables[SRV_TABLE_BASE], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 
 	return true;
 }
@@ -106,7 +106,7 @@ bool Renderer::SetLightProbesGT(const Descriptor& irradiance, const Descriptor& 
 	const Descriptor descriptors[] = { radiance, irradiance };
 	const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 	descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-	X_RETURN(m_srvTables[SRV_TABLE_GT], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+	XUSG_X_RETURN(m_srvTables[SRV_TABLE_GT], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 
 	return true;
 }
@@ -218,13 +218,13 @@ void Renderer::Render(CommandList* pCommandList, uint8_t frameIndex, ResourceBar
 	numBarriers = m_renderTargets[RT_VELOCITY]->SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
 	numBarriers = m_depth->SetBarrier(barriers, ResourceState::DEPTH_WRITE, numBarriers);
 	numBarriers = m_outputViews[UAV_PP_TAA + !m_frameParity]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE |
-		ResourceState::PIXEL_SHADER_RESOURCE, numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
+		ResourceState::PIXEL_SHADER_RESOURCE, numBarriers, XUSG_BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
 	if (mode == SH_APPROX) numBarriers = m_coeffSH->SetBarrier(barriers, ResourceState::PIXEL_SHADER_RESOURCE, numBarriers);
 	pCommandList->Barrier(numBarriers, barriers);
 	render(pCommandList, frameIndex, mode, needClear);
 
 	numBarriers = m_renderTargets[RT_VELOCITY]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE,
-		0, BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
+		0, XUSG_BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
 	pCommandList->Barrier(numBarriers, barriers);
 
 	environment(pCommandList, frameIndex);
@@ -263,7 +263,7 @@ bool Renderer::createVB(CommandList* pCommandList, uint32_t numVert,
 	uint32_t stride, const uint8_t* pData, vector<Resource::uptr>& uploaders)
 {
 	m_vertexBuffer = VertexBuffer::MakeUnique();
-	N_RETURN(m_vertexBuffer->Create(pCommandList->GetDevice(), numVert, stride,
+	XUSG_N_RETURN(m_vertexBuffer->Create(pCommandList->GetDevice(), numVert, stride,
 		ResourceFlag::NONE, MemoryType::DEFAULT, 1, nullptr, 1, nullptr,
 		1, nullptr, MemoryFlag::NONE, L"MeshVB"), false);
 	uploaders.emplace_back(Resource::MakeUnique());
@@ -278,7 +278,7 @@ bool Renderer::createIB(CommandList* pCommandList, uint32_t numIndices,
 
 	const uint32_t byteWidth = sizeof(uint32_t) * numIndices;
 	m_indexBuffer = IndexBuffer::MakeUnique();
-	N_RETURN(m_indexBuffer->Create(pCommandList->GetDevice(), byteWidth, Format::R32_UINT, ResourceFlag::NONE,
+	XUSG_N_RETURN(m_indexBuffer->Create(pCommandList->GetDevice(), byteWidth, Format::R32_UINT, ResourceFlag::NONE,
 		MemoryType::DEFAULT, 1, nullptr, 1, nullptr, 1, nullptr, MemoryFlag::NONE, L"MeshIB"), false);
 	uploaders.emplace_back(Resource::MakeUnique());
 
@@ -294,7 +294,7 @@ bool Renderer::createInputLayout()
 		{ "NORMAL",		0, Format::R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT,	InputClassification::PER_VERTEX_DATA, 0 }
 	};
 
-	X_RETURN(m_pInputLayout, m_graphicsPipelineCache->CreateInputLayout(inputElements, static_cast<uint32_t>(size(inputElements))), false);
+	XUSG_X_RETURN(m_pInputLayout, m_graphicsPipelineCache->CreateInputLayout(inputElements, static_cast<uint32_t>(size(inputElements))), false);
 
 	return true;
 }
@@ -310,7 +310,7 @@ bool Renderer::createPipelineLayouts()
 		pipelineLayout->SetShaderStage(SHADER_RESOURCES, Shader::PS);
 		pipelineLayout->SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
 		pipelineLayout->SetShaderStage(SAMPLER, Shader::PS);
-		X_RETURN(m_pipelineLayouts[BASE_PASS], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
+		XUSG_X_RETURN(m_pipelineLayouts[BASE_PASS], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, L"BasePassLayout"), false);
 	}
 
@@ -324,7 +324,7 @@ bool Renderer::createPipelineLayouts()
 		pipelineLayout->SetRootSRV(BUFFER, 1, 0, DescriptorFlag::NONE, Shader::Stage::PS);
 		pipelineLayout->SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
 		pipelineLayout->SetShaderStage(SAMPLER, Shader::PS);
-		X_RETURN(m_pipelineLayouts[BASE_PASS_SH], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
+		XUSG_X_RETURN(m_pipelineLayouts[BASE_PASS_SH], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT, L"BasePassLayout"), false);
 	}
 
@@ -336,7 +336,7 @@ bool Renderer::createPipelineLayouts()
 		pipelineLayout->SetShaderStage(SHADER_RESOURCES, Shader::Stage::PS);
 		pipelineLayout->SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
 		pipelineLayout->SetShaderStage(SAMPLER, Shader::PS);
-		X_RETURN(m_pipelineLayouts[ENVIRONMENT], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
+		XUSG_X_RETURN(m_pipelineLayouts[ENVIRONMENT], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"EnvironmentLayout"), false);
 	}
 
@@ -347,7 +347,7 @@ bool Renderer::createPipelineLayouts()
 			DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		pipelineLayout->SetRange(SHADER_RESOURCES, DescriptorType::SRV, 3, 0);
 		pipelineLayout->SetRange(SAMPLER, DescriptorType::SAMPLER, 1, 0);
-		X_RETURN(m_pipelineLayouts[TEMPORAL_AA], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
+		XUSG_X_RETURN(m_pipelineLayouts[TEMPORAL_AA], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"TemporalAALayout"), false);
 	}
 
@@ -356,7 +356,7 @@ bool Renderer::createPipelineLayouts()
 		const auto pipelineLayout = Util::PipelineLayout::MakeUnique();
 		pipelineLayout->SetRange(0, DescriptorType::SRV, 1, 0);
 		pipelineLayout->SetShaderStage(0, Shader::Stage::PS);
-		X_RETURN(m_pipelineLayouts[POSTPROCESS], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
+		XUSG_X_RETURN(m_pipelineLayouts[POSTPROCESS], pipelineLayout->GetPipelineLayout(m_pipelineLayoutCache.get(),
 			PipelineLayoutFlag::NONE, L"PostprocessLayout"), false);
 	}
 
@@ -370,9 +370,9 @@ bool Renderer::createPipelines(Format rtFormat)
 	auto csIndex = 0u;
 
 	// Base pass
-	N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSBasePass.cso"), false);
+	XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSBasePass.cso"), false);
 	{
-		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSBasePass.cso"), false);
+		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSBasePass.cso"), false);
 
 		const auto state = Graphics::State::MakeUnique();
 		state->IASetInputLayout(m_pInputLayout);
@@ -384,12 +384,12 @@ bool Renderer::createPipelines(Format rtFormat)
 		state->OMSetRTVFormat(RT_COLOR, Format::R16G16B16A16_FLOAT);
 		state->OMSetRTVFormat(RT_VELOCITY, Format::R16G16_FLOAT);
 		state->OMSetDSVFormat(Format::D24_UNORM_S8_UINT);
-		X_RETURN(m_pipelines[BASE_PASS], state->GetPipeline(m_graphicsPipelineCache.get(), L"BasePass"), false);
+		XUSG_X_RETURN(m_pipelines[BASE_PASS], state->GetPipeline(m_graphicsPipelineCache.get(), L"BasePass"), false);
 	}
 
 	// Base pass SH
 	{
-		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSBasePassSH.cso"), false);
+		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSBasePassSH.cso"), false);
 
 		const auto state = Graphics::State::MakeUnique();
 		state->IASetInputLayout(m_pInputLayout);
@@ -401,13 +401,13 @@ bool Renderer::createPipelines(Format rtFormat)
 		state->OMSetRTVFormat(RT_COLOR, Format::R16G16B16A16_FLOAT);
 		state->OMSetRTVFormat(RT_VELOCITY, Format::R16G16_FLOAT);
 		state->OMSetDSVFormat(Format::D24_UNORM_S8_UINT);
-		X_RETURN(m_pipelines[BASE_PASS_SH], state->GetPipeline(m_graphicsPipelineCache.get(), L"BasePass"), false);
+		XUSG_X_RETURN(m_pipelines[BASE_PASS_SH], state->GetPipeline(m_graphicsPipelineCache.get(), L"BasePass"), false);
 	}
 
 	// Environment
-	N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
+	XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
 	{
-		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSEnvironment.cso"), false);
+		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSEnvironment.cso"), false);
 
 		const auto state = Graphics::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[ENVIRONMENT]);
@@ -418,22 +418,22 @@ bool Renderer::createPipelines(Format rtFormat)
 		state->OMSetNumRenderTargets(1);
 		state->OMSetRTVFormat(RT_COLOR, Format::R16G16B16A16_FLOAT);
 		state->OMSetDSVFormat(Format::D24_UNORM_S8_UINT);
-		X_RETURN(m_pipelines[ENVIRONMENT], state->GetPipeline(m_graphicsPipelineCache.get(), L"Environment"), false);
+		XUSG_X_RETURN(m_pipelines[ENVIRONMENT], state->GetPipeline(m_graphicsPipelineCache.get(), L"Environment"), false);
 	}
 
 	// Temporal AA
 	{
-		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, csIndex, L"CSTemporalAA.cso"), false);
+		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, csIndex, L"CSTemporalAA.cso"), false);
 
 		const auto state = Compute::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[TEMPORAL_AA]);
 		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex++));
-		X_RETURN(m_pipelines[TEMPORAL_AA], state->GetPipeline(m_computePipelineCache.get(), L"TemporalAA"), false);
+		XUSG_X_RETURN(m_pipelines[TEMPORAL_AA], state->GetPipeline(m_computePipelineCache.get(), L"TemporalAA"), false);
 	}
 
 	// Postprocess
 	{
-		N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSPostprocess.cso"), false);
+		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSPostprocess.cso"), false);
 
 		const auto state = Graphics::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[POSTPROCESS]);
@@ -443,7 +443,7 @@ bool Renderer::createPipelines(Format rtFormat)
 		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
 		state->OMSetNumRenderTargets(1);
 		state->OMSetRTVFormat(0, rtFormat);
-		X_RETURN(m_pipelines[POSTPROCESS], state->GetPipeline(m_graphicsPipelineCache.get(), L"Postprocess"), false);
+		XUSG_X_RETURN(m_pipelines[POSTPROCESS], state->GetPipeline(m_graphicsPipelineCache.get(), L"Postprocess"), false);
 	}
 
 	return true;
@@ -456,7 +456,7 @@ bool Renderer::createDescriptorTables()
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_outputViews[UAV_PP_TAA + i]->GetUAV());
-		X_RETURN(m_uavTables[UAV_TABLE_TAA + i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+		XUSG_X_RETURN(m_uavTables[UAV_TABLE_TAA + i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	// Temporal AA input SRVs
@@ -470,7 +470,7 @@ bool Renderer::createDescriptorTables()
 		};
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-		X_RETURN(m_srvTables[SRV_TABLE_TAA + i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+		XUSG_X_RETURN(m_srvTables[SRV_TABLE_TAA + i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	// Postprocess SRVs
@@ -478,7 +478,7 @@ bool Renderer::createDescriptorTables()
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_outputViews[UAV_PP_TAA + i]->GetSRV());
-		X_RETURN(m_srvTables[SRV_TABLE_PP + i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+		XUSG_X_RETURN(m_srvTables[SRV_TABLE_PP + i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
 	}
 
 	// RTV table
@@ -498,7 +498,7 @@ bool Renderer::createDescriptorTables()
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		const auto samplerAnisoWrap = SamplerPreset::ANISOTROPIC_WRAP;
 		descriptorTable->SetSamplers(0, 1, &samplerAnisoWrap, m_descriptorTableCache.get());
-		X_RETURN(m_samplerTable, descriptorTable->GetSamplerTable(m_descriptorTableCache.get()), false);
+		XUSG_X_RETURN(m_samplerTable, descriptorTable->GetSamplerTable(m_descriptorTableCache.get()), false);
 	}
 
 	return true;
@@ -574,9 +574,9 @@ void Renderer::temporalAA(CommandList* pCommandList)
 	auto numBarriers = m_outputViews[UAV_PP_TAA + m_frameParity]->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS);
 	numBarriers = m_renderTargets[RT_COLOR]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
 	numBarriers = m_outputViews[UAV_PP_TAA + !m_frameParity]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE |
-		ResourceState::PIXEL_SHADER_RESOURCE, numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::END_ONLY);
+		ResourceState::PIXEL_SHADER_RESOURCE, numBarriers, XUSG_BARRIER_ALL_SUBRESOURCES, BarrierFlag::END_ONLY);
 	numBarriers = m_renderTargets[RT_VELOCITY]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE,
-		numBarriers, BARRIER_ALL_SUBRESOURCES, BarrierFlag::END_ONLY);
+		numBarriers, XUSG_BARRIER_ALL_SUBRESOURCES, BarrierFlag::END_ONLY);
 	pCommandList->Barrier(numBarriers, barriers);
 
 	// Set descriptor tables
@@ -587,5 +587,5 @@ void Renderer::temporalAA(CommandList* pCommandList)
 
 	// Set pipeline state
 	pCommandList->SetPipelineState(m_pipelines[TEMPORAL_AA]);
-	pCommandList->Dispatch(DIV_UP(m_viewport.x, 8), DIV_UP(m_viewport.y, 8), 1);
+	pCommandList->Dispatch(XUSG_DIV_UP(m_viewport.x, 8), XUSG_DIV_UP(m_viewport.y, 8), 1);
 }
