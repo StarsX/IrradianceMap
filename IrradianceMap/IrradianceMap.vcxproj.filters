@@ -115,13 +115,13 @@
     <None Include="Content\Shaders\MipCosine.hlsli">
       <Filter>Shaders\MipRadiance</Filter>
     </None>
-    <None Include="Content\Shaders\SHMath.hlsli">
+    <None Include="XUSG\Shaders\CubeMap.hlsli">
       <Filter>Shaders\SHMath</Filter>
     </None>
-    <None Include="Content\Shaders\CubeMap.hlsli">
-      <Filter>Shaders</Filter>
+    <None Include="XUSG\Shaders\SHIrradiance.hlsli">
+      <Filter>Shaders\SHMath</Filter>
     </None>
-    <None Include="Content\Shaders\SHIrradiance.hlsli">
+    <None Include="XUSG\Shaders\SHIrradianceTypeless.hlsli">
       <Filter>Shaders\SHMath</Filter>
     </None>
   </ItemGroup>
@@ -170,15 +170,6 @@
     </FxCompile>
     <FxCompile Include="Content\Shaders\PSResample.hlsl">
       <Filter>Shaders\MipRadiance</Filter>
-    </FxCompile>
-    <FxCompile Include="Content\Shaders\CSSHCubeMap.hlsl">
-      <Filter>Shaders\SHMath</Filter>
-    </FxCompile>
-    <FxCompile Include="Content\Shaders\CSSHNormalize.hlsl">
-      <Filter>Shaders\SHMath</Filter>
-    </FxCompile>
-    <FxCompile Include="Content\Shaders\CSSHSum.hlsl">
-      <Filter>Shaders\SHMath</Filter>
     </FxCompile>
   </ItemGroup>
 </Project>

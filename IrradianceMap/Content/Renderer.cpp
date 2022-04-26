@@ -214,6 +214,14 @@ void Renderer::UpdateFrame(uint8_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewPr
 void Renderer::Render(CommandList* pCommandList, uint8_t frameIndex, ResourceBarrier* barriers,
 	uint32_t numBarriers, RenderMode mode, bool needClear)
 {
+	// Set Descriptor pools
+	const DescriptorPool descriptorPools[] =
+	{
+		m_descriptorTableCache->GetDescriptorPool(CBV_SRV_UAV_POOL),
+		m_descriptorTableCache->GetDescriptorPool(SAMPLER_POOL)
+	};
+	pCommandList->SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
+
 	numBarriers = m_renderTargets[RT_COLOR]->SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
 	numBarriers = m_renderTargets[RT_VELOCITY]->SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
 	numBarriers = m_depth->SetBarrier(barriers, ResourceState::DEPTH_WRITE, numBarriers);

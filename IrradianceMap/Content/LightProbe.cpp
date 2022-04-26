@@ -21,7 +21,7 @@ struct CBImmutable
 LightProbe::LightProbe() :
 	m_groundTruth(nullptr)
 {
-	m_shaderPool = ShaderPool::MakeUnique();
+	m_shaderPool = ShaderPool::MakeShared();
 }
 
 LightProbe::~LightProbe()
@@ -34,8 +34,8 @@ bool LightProbe::Init(CommandList* pCommandList, uint32_t width, uint32_t height
 {
 	const auto pDevice = pCommandList->GetDevice();
 	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(pDevice);
-	m_computePipelineCache = Compute::PipelineCache::MakeUnique(pDevice);
-	m_pipelineLayoutCache = PipelineLayoutCache::MakeUnique(pDevice);
+	m_computePipelineCache = Compute::PipelineCache::MakeShared(pDevice);
+	m_pipelineLayoutCache = PipelineLayoutCache::MakeShared(pDevice);
 	m_descriptorTableCache = descriptorTableCache;
 
 	// Load input image
@@ -70,28 +70,6 @@ bool LightProbe::Init(CommandList* pCommandList, uint32_t width, uint32_t height
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, nullptr, true,
 		MemoryFlag::NONE, L"Radiance");
 
-	m_numSHTexels = SH_TEX_SIZE * SH_TEX_SIZE * 6;
-	const auto numGroups = XUSG_DIV_UP(m_numSHTexels, SH_GROUP_SIZE);
-	const auto numSumGroups = XUSG_DIV_UP(numGroups, SH_GROUP_SIZE);
-	const auto maxElements = SH_MAX_ORDER * SH_MAX_ORDER * numGroups;
-	const auto maxSumElements = SH_MAX_ORDER * SH_MAX_ORDER * numSumGroups;
-	m_coeffSH[0] = StructuredBuffer::MakeShared();
-	m_coeffSH[0]->Create(pDevice, maxElements, sizeof(float[3]),
-		ResourceFlag::ALLOW_UNORDERED_ACCESS, MemoryType::DEFAULT,
-		1, nullptr, 1, nullptr, MemoryFlag::NONE, L"SHCoefficients0");
-	m_coeffSH[1] = StructuredBuffer::MakeShared();
-	m_coeffSH[1]->Create(pDevice, maxSumElements, sizeof(float[3]),
-		ResourceFlag::ALLOW_UNORDERED_ACCESS, MemoryType::DEFAULT,
-		1, nullptr, 1, nullptr, MemoryFlag::NONE, L"SHCoefficients1");
-	m_weightSH[0] = StructuredBuffer::MakeUnique();
-	m_weightSH[0]->Create(pDevice, numGroups, sizeof(float),
-		ResourceFlag::ALLOW_UNORDERED_ACCESS, MemoryType::DEFAULT,
-		1, nullptr, 1, nullptr, MemoryFlag::NONE, L"SHWeights0");
-	m_weightSH[1] = StructuredBuffer::MakeUnique();
-	m_weightSH[1]->Create(pDevice, numSumGroups, sizeof(float),
-		ResourceFlag::ALLOW_UNORDERED_ACCESS, MemoryType::DEFAULT,
-		1, nullptr, 1, nullptr, MemoryFlag::NONE, L"SHWeights1");
-
 	// Create constant buffers
 	m_cbImmutable = ConstantBuffer::MakeUnique();
 	XUSG_N_RETURN(m_cbImmutable->Create(pDevice, sizeof(CBImmutable), 1,
@@ -105,6 +83,10 @@ bool LightProbe::Init(CommandList* pCommandList, uint32_t width, uint32_t height
 	XUSG_N_RETURN(createPipelineLayouts(), false);
 	XUSG_N_RETURN(createPipelines(format, typedUAV), false);
 	XUSG_N_RETURN(createDescriptorTables(), false);
+
+	m_sphericalHarmonics = SphericalHarmonics::MakeUnique();
+	XUSG_N_RETURN(m_sphericalHarmonics->Init(pDevice, m_shaderPool, m_computePipelineCache,
+		m_pipelineLayoutCache, m_descriptorTableCache, SH_CUBE_MAP, 0), false);
 
 	return true;
 }
@@ -153,11 +135,8 @@ void LightProbe::Process(CommandList* pCommandList, uint8_t frameIndex, Pipeline
 		}
 	case SH:
 	{
-		const uint8_t order = 3;
 		generateRadianceCompute(pCommandList, frameIndex);
-		shCubeMap(pCommandList, order);
-		shSum(pCommandList, order);
-		shNormalize(pCommandList, order);
+		m_sphericalHarmonics->Transform(pCommandList, m_radiance.get(), m_srvTables[TABLE_RESAMPLE][0]);
 		break;
 	}
 	default:
@@ -195,7 +174,8 @@ ShaderResource* LightProbe::GetRadiance() const
 
 StructuredBuffer::sptr LightProbe::GetSH() const
 {
-	return m_coeffSH[m_shBufferParity];
+	//return m_coeffSH[m_shBufferParity];
+	return m_sphericalHarmonics->GetSHCoefficients();
 }
 
 bool LightProbe::createPipelineLayouts()
@@ -294,40 +274,6 @@ bool LightProbe::createPipelineLayouts()
 		utilPipelineLayout->SetRootCBV(4, 1);
 		XUSG_X_RETURN(m_pipelineLayouts[FINAL_C], utilPipelineLayout->GetPipelineLayout(
 			m_pipelineLayoutCache.get(), PipelineLayoutFlag::NONE, L"FinalPassComputeLayout"), false);
-	}
-
-	// SH cube map transform
-	{
-		const auto utilPipelineLayout = Util::PipelineLayout::MakeUnique();
-		utilPipelineLayout->SetRange(0, DescriptorType::SAMPLER, 1, 0);
-		utilPipelineLayout->SetRootUAV(1, 0);
-		utilPipelineLayout->SetRootUAV(2, 1);
-		utilPipelineLayout->SetRange(3, DescriptorType::SRV, 1, 0);
-		utilPipelineLayout->SetConstants(4, XUSG_SizeOfInUint32(uint32_t[2]), 0);
-		XUSG_X_RETURN(m_pipelineLayouts[SH_CUBE_MAP], utilPipelineLayout->GetPipelineLayout(
-			m_pipelineLayoutCache.get(), PipelineLayoutFlag::NONE, L"SHCubeMapLayout"), false);
-	}
-
-	// SH sum
-	{
-		const auto utilPipelineLayout = Util::PipelineLayout::MakeUnique();
-		utilPipelineLayout->SetRootUAV(0, 0);
-		utilPipelineLayout->SetRootUAV(1, 1);
-		utilPipelineLayout->SetRootSRV(2, 0);
-		utilPipelineLayout->SetRootSRV(3, 1);
-		utilPipelineLayout->SetConstants(4, XUSG_SizeOfInUint32(uint32_t[2]), 0);
-		XUSG_X_RETURN(m_pipelineLayouts[SH_SUM], utilPipelineLayout->GetPipelineLayout(
-			m_pipelineLayoutCache.get(), PipelineLayoutFlag::NONE, L"SHSumLayout"), false);
-	}
-
-	// SH normalization
-	{
-		const auto utilPipelineLayout = Util::PipelineLayout::MakeUnique();
-		utilPipelineLayout->SetRootUAV(0, 0);
-		utilPipelineLayout->SetRootSRV(1, 0);
-		utilPipelineLayout->SetRootSRV(2, 1);
-		XUSG_X_RETURN(m_pipelineLayouts[SH_NORMALIZE], utilPipelineLayout->GetPipelineLayout(
-			m_pipelineLayoutCache.get(), PipelineLayoutFlag::NONE, L"SHNormalizeLayout"), false);
 	}
 
 	return true;
@@ -440,36 +386,6 @@ bool LightProbe::createPipelines(Format rtFormat, bool typedUAV)
 		state->SetPipelineLayout(m_pipelineLayouts[FINAL_C]);
 		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex++));
 		XUSG_X_RETURN(m_pipelines[FINAL_C], state->GetPipeline(m_computePipelineCache.get(), L"UpSampling_compute"), false);
-	}
-
-	// SH cube map transform
-	{
-		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, csIndex, L"CSSHCubeMap.cso"), false);
-
-		const auto state = Compute::State::MakeUnique();
-		state->SetPipelineLayout(m_pipelineLayouts[SH_CUBE_MAP]);
-		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex++));
-		XUSG_X_RETURN(m_pipelines[SH_CUBE_MAP], state->GetPipeline(m_computePipelineCache.get(), L"SHCubeMap"), false);
-	}
-
-	// SH sum
-	{
-		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, csIndex, L"CSSHSum.cso"), false);
-
-		const auto state = Compute::State::MakeUnique();
-		state->SetPipelineLayout(m_pipelineLayouts[SH_SUM]);
-		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex++));
-		XUSG_X_RETURN(m_pipelines[SH_SUM], state->GetPipeline(m_computePipelineCache.get(), L"SHSum"), false);
-	}
-
-	// SH normalization
-	{
-		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, csIndex, L"CSSHNormalize.cso"), false);
-
-		const auto state = Compute::State::MakeUnique();
-		state->SetPipelineLayout(m_pipelineLayouts[SH_NORMALIZE]);
-		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex));
-		XUSG_X_RETURN(m_pipelines[SH_NORMALIZE], state->GetPipeline(m_computePipelineCache.get(), L"SHNormalize"), false);
 	}
 
 	return true;
@@ -650,83 +566,4 @@ void LightProbe::generateRadianceCompute(CommandList* pCommandList, uint8_t fram
 
 	m_radiance->AsTexture()->Blit(pCommandList, 8, 8, 1, m_uavTables[TABLE_RADIANCE][0], 2, 0,
 		m_srvTables[TABLE_RADIANCE][m_inputProbeIdx], 3, m_samplerTable, 0, m_pipelines[GEN_RADIANCE_COMPUTE]);
-}
-
-void LightProbe::shCubeMap(CommandList* pCommandList, uint8_t order)
-{
-	assert(order <= SH_MAX_ORDER);
-	ResourceBarrier barrier;
-	m_coeffSH[0]->SetBarrier(&barrier, ResourceState::UNORDERED_ACCESS);	// Promotion
-	m_weightSH[0]->SetBarrier(&barrier, ResourceState::UNORDERED_ACCESS);	// Promotion
-	const auto numBarriers = m_radiance->SetBarrier(&barrier,
-		ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE);
-	pCommandList->Barrier(numBarriers, &barrier);
-
-	pCommandList->SetComputePipelineLayout(m_pipelineLayouts[SH_CUBE_MAP]);
-	pCommandList->SetComputeDescriptorTable(0, m_samplerTable);
-	pCommandList->SetComputeRootUnorderedAccessView(1, m_coeffSH[0].get());
-	pCommandList->SetComputeRootUnorderedAccessView(2, m_weightSH[0].get());
-	pCommandList->SetComputeDescriptorTable(3, m_srvTables[TABLE_RESAMPLE][0]);
-	pCommandList->SetCompute32BitConstant(4, order);
-	pCommandList->SetCompute32BitConstant(4, SH_TEX_SIZE, XUSG_SizeOfInUint32(order));
-	pCommandList->SetPipelineState(m_pipelines[SH_CUBE_MAP]);
-
-	pCommandList->Dispatch(XUSG_DIV_UP(m_numSHTexels, SH_GROUP_SIZE), 1, 1);
-}
-
-void LightProbe::shSum(CommandList* pCommandList, uint8_t order)
-{
-	assert(order <= SH_MAX_ORDER);
-	ResourceBarrier barriers[4];
-	m_shBufferParity = 0;
-
-	pCommandList->SetComputePipelineLayout(m_pipelineLayouts[SH_SUM]);
-	pCommandList->SetCompute32BitConstant(4, order);
-	pCommandList->SetPipelineState(m_pipelines[SH_SUM]);
-
-	// Promotions
-	m_coeffSH[1]->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS);
-	m_weightSH[1]->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS);
-
-	for (auto n = XUSG_DIV_UP(m_numSHTexels, SH_GROUP_SIZE); n > 1; n = XUSG_DIV_UP(n, SH_GROUP_SIZE))
-	{
-		const auto& src = m_shBufferParity;
-		const uint8_t dst = !m_shBufferParity;
-		auto numBarriers = m_coeffSH[dst]->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS);
-		numBarriers = m_weightSH[dst]->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS, numBarriers);
-		numBarriers = m_coeffSH[src]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
-		numBarriers = m_weightSH[src]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
-		pCommandList->Barrier(numBarriers, barriers);
-
-		pCommandList->SetComputeRootUnorderedAccessView(0, m_coeffSH[dst].get());
-		pCommandList->SetComputeRootUnorderedAccessView(1, m_weightSH[dst].get());
-		pCommandList->SetComputeRootShaderResourceView(2, m_coeffSH[src].get());
-		pCommandList->SetComputeRootShaderResourceView(3, m_weightSH[src].get());
-		pCommandList->SetCompute32BitConstant(4, n, XUSG_SizeOfInUint32(order));
-
-		pCommandList->Dispatch(XUSG_DIV_UP(n, SH_GROUP_SIZE), order * order, 1);
-		m_shBufferParity = !m_shBufferParity;
-	}
-}
-
-void LightProbe::shNormalize(CommandList* pCommandList, uint8_t order)
-{
-	assert(order <= SH_MAX_ORDER);
-	ResourceBarrier barriers[3];
-	const auto& src = m_shBufferParity;
-	const uint8_t dst = !m_shBufferParity;
-	auto numBarriers = m_coeffSH[dst]->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS);
-	numBarriers = m_coeffSH[src]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
-	numBarriers = m_weightSH[src]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
-	pCommandList->Barrier(numBarriers, barriers);
-
-	pCommandList->SetComputePipelineLayout(m_pipelineLayouts[SH_NORMALIZE]);
-	pCommandList->SetComputeRootUnorderedAccessView(0, m_coeffSH[dst].get());
-	pCommandList->SetComputeRootShaderResourceView(1, m_coeffSH[src].get());
-	pCommandList->SetComputeRootShaderResourceView(2, m_weightSH[src].get());
-	pCommandList->SetPipelineState(m_pipelines[SH_NORMALIZE]);
-
-	const auto numElements = order * order;
-	pCommandList->Dispatch(XUSG_DIV_UP(numElements, SH_GROUP_SIZE), 1, 1);
-	m_shBufferParity = !m_shBufferParity;
 }

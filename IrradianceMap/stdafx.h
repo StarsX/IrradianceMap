@@ -53,3 +53,5 @@
 #define new DBG_NEW
 #endif
 #endif  // _DEBUG
+
+#define _INDEPENDENT_SPHERICAL_HARMONICS_

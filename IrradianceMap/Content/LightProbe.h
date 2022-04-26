@@ -6,6 +6,7 @@
 
 #include "DXFramework.h"
 #include "Core/XUSG.h"
+#include "Advanced/XUSGSphericalHarmonics.h"
 
 class LightProbe
 {
@@ -77,18 +78,17 @@ protected:
 	void upsampleCompute(XUSG::CommandList* pCommandList, XUSG::ResourceBarrier* pBarriers, uint32_t numBarriers);
 	void generateRadianceGraphics(XUSG::CommandList* pCommandList, uint8_t frameIndex);
 	void generateRadianceCompute(XUSG::CommandList* pCommandList, uint8_t frameIndex);
-	void shCubeMap(XUSG::CommandList* pCommandList, uint8_t order);
-	void shSum(XUSG::CommandList* pCommandList, uint8_t order);
-	void shNormalize(XUSG::CommandList* pCommandList, uint8_t order);
 
-	XUSG::ShaderPool::uptr				m_shaderPool;
+	XUSG::ShaderPool::sptr				m_shaderPool;
 	XUSG::Graphics::PipelineCache::uptr	m_graphicsPipelineCache;
-	XUSG::Compute::PipelineCache::uptr	m_computePipelineCache;
-	XUSG::PipelineLayoutCache::uptr		m_pipelineLayoutCache;
+	XUSG::Compute::PipelineCache::sptr	m_computePipelineCache;
+	XUSG::PipelineLayoutCache::sptr		m_pipelineLayoutCache;
 	XUSG::DescriptorTableCache::sptr	m_descriptorTableCache;
 
 	XUSG::PipelineLayout	m_pipelineLayouts[NUM_PIPELINE];
 	XUSG::Pipeline			m_pipelines[NUM_PIPELINE];
+
+	XUSG::SphericalHarmonics::uptr m_sphericalHarmonics;
 
 	std::vector<XUSG::DescriptorTable> m_srvTables[NUM_UAV_SRV];
 	std::vector<XUSG::DescriptorTable> m_uavTables[NUM_UAV_SRV];
@@ -99,13 +99,8 @@ protected:
 	XUSG::RenderTarget::uptr	m_irradiance;
 	XUSG::RenderTarget::uptr	m_radiance;
 
-	XUSG::StructuredBuffer::sptr m_coeffSH[2];
-	XUSG::StructuredBuffer::uptr m_weightSH[2];
-
 	XUSG::ConstantBuffer::uptr	m_cbImmutable;
 	XUSG::ConstantBuffer::uptr	m_cbPerFrame;
 
 	uint32_t				m_inputProbeIdx;
-	uint32_t				m_numSHTexels;
-	uint8_t					m_shBufferParity;
 };
