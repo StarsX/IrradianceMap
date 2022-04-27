@@ -52,11 +52,17 @@ protected:
 		UP_SAMPLE_INPLACE,
 		FINAL_G,
 		FINAL_C,
-		SH_CUBE_MAP,
-		SH_SUM,
-		SH_NORMALIZE,
 
 		NUM_PIPELINE
+	};
+
+	enum CSIndex : uint8_t
+	{
+		CS_GEN_RADIANCE,
+		CS_RESAMPLE,
+		CS_UP_SAMPLE,
+		CS_FINAL,
+		CS_SH
 	};
 
 	enum UavSrvTableIndex : uint8_t

@@ -86,7 +86,7 @@ bool LightProbe::Init(CommandList* pCommandList, uint32_t width, uint32_t height
 
 	m_sphericalHarmonics = SphericalHarmonics::MakeUnique();
 	XUSG_N_RETURN(m_sphericalHarmonics->Init(pDevice, m_shaderPool, m_computePipelineCache,
-		m_pipelineLayoutCache, m_descriptorTableCache, SH_CUBE_MAP, 0), false);
+		m_pipelineLayoutCache, m_descriptorTableCache, CS_SH, 0), false);
 
 	return true;
 }
@@ -174,7 +174,6 @@ ShaderResource* LightProbe::GetRadiance() const
 
 StructuredBuffer::sptr LightProbe::GetSH() const
 {
-	//return m_coeffSH[m_shBufferParity];
 	return m_sphericalHarmonics->GetSHCoefficients();
 }
 
@@ -283,7 +282,6 @@ bool LightProbe::createPipelines(Format rtFormat, bool typedUAV)
 {
 	auto vsIndex = 0u;
 	auto psIndex = 0u;
-	auto csIndex = 0u;
 
 	// Generate Radiance graphics
 	XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
@@ -303,11 +301,11 @@ bool LightProbe::createPipelines(Format rtFormat, bool typedUAV)
 
 	// Generate Radiance compute
 	{
-		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, csIndex, L"CSGenRadiance.cso"), false);
+		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, CS_GEN_RADIANCE, L"CSGenRadiance.cso"), false);
 
 		const auto state = Compute::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[GEN_RADIANCE_COMPUTE]);
-		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex++));
+		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, CS_GEN_RADIANCE));
 		XUSG_X_RETURN(m_pipelines[GEN_RADIANCE_COMPUTE], state->GetPipeline(m_computePipelineCache.get(), L"RadianceGeneration_compute"), false);
 	}
 
@@ -328,11 +326,11 @@ bool LightProbe::createPipelines(Format rtFormat, bool typedUAV)
 
 	// Resampling compute
 	{
-		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, csIndex, L"CSResample.cso"), false);
+		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, CS_RESAMPLE, L"CSResample.cso"), false);
 
 		const auto state = Compute::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[RESAMPLE_COMPUTE]);
-		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex++));
+		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, CS_RESAMPLE));
 		XUSG_X_RETURN(m_pipelines[RESAMPLE_COMPUTE], state->GetPipeline(m_computePipelineCache.get(), L"Resampling_compute"), false);
 	}
 
@@ -355,11 +353,11 @@ bool LightProbe::createPipelines(Format rtFormat, bool typedUAV)
 	// Up sampling compute
 	if (typedUAV)
 	{
-		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, csIndex, L"CSCosUp_in_place.cso"), false);
+		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, CS_UP_SAMPLE, L"CSCosUp_in_place.cso"), false);
 
 		const auto state = Compute::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[UP_SAMPLE_INPLACE]);
-		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex++));
+		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, CS_UP_SAMPLE));
 		XUSG_X_RETURN(m_pipelines[UP_SAMPLE_INPLACE], state->GetPipeline(m_computePipelineCache.get(), L"UpSampling_in_place"), false);
 	}
 
@@ -380,11 +378,11 @@ bool LightProbe::createPipelines(Format rtFormat, bool typedUAV)
 
 	// Up sampling compute, for the final pass
 	{
-		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, csIndex, L"CSCosineUp.cso"), false);
+		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, CS_FINAL, L"CSCosineUp.cso"), false);
 
 		const auto state = Compute::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[FINAL_C]);
-		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, csIndex++));
+		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, CS_FINAL));
 		XUSG_X_RETURN(m_pipelines[FINAL_C], state->GetPipeline(m_computePipelineCache.get(), L"UpSampling_compute"), false);
 	}
 
