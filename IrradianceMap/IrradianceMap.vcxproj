@@ -188,10 +188,11 @@ COPY /Y "$(ProjectDir)XUSG\Bin\$(Platform)\$(Configuration)\*.dll" "$(ProjectDir
     <ClInclude Include="Common\Win32Application.h" />
     <ClInclude Include="Content\LightProbe.h" />
     <ClInclude Include="Content\Renderer.h" />
-    <ClInclude Include="Content\SHSharedConsts.h" />
     <ClInclude Include="IrradianceMap.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="XUSG\Advanced\XUSGDDSLoader.h" />
+    <ClInclude Include="XUSG\Advanced\XUSGSHSharedConsts.h" />
+    <ClInclude Include="XUSG\Advanced\XUSGSphericalHarmonics.h" />
     <ClInclude Include="XUSG\Core\XUSG.h" />
     <ClInclude Include="XUSG\Optional\XUSGObjLoader.h" />
   </ItemGroup>

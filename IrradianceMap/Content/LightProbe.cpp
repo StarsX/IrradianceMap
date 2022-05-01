@@ -2,8 +2,8 @@
 // Copyright (c) XU, Tianchen. All rights reserved.
 //--------------------------------------------------------------------------------------
 
-#include "SHSharedConsts.h"
 #include "LightProbe.h"
+#include "Advanced/XUSGSHSharedConsts.h"
 #define _INDEPENDENT_DDS_LOADER_
 #include "Advanced/XUSGDDSLoader.h"
 #undef _INDEPENDENT_DDS_LOADER_
