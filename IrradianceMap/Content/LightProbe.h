@@ -24,10 +24,10 @@ public:
 	LightProbe();
 	virtual ~LightProbe();
 
-	bool Init(XUSG::CommandList* pCommandList, uint32_t width, uint32_t height,
-		const XUSG::DescriptorTableCache::sptr& descriptorTableCache,
+	bool Init(XUSG::CommandList* pCommandList, const XUSG::DescriptorTableCache::sptr& descriptorTableCache,
 		std::vector<XUSG::Resource::uptr>& uploaders, const std::wstring pFileNames[],
 		uint32_t numFiles, bool typedUAV);
+	bool CreateDescriptorTables(XUSG::Device* pDevice);
 
 	void UpdateFrame(double time, uint8_t frameIndex);
 	void Process(XUSG::CommandList* pCommandList, uint8_t frameIndex, PipelineType pipelineType);

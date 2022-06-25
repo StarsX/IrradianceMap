@@ -19,6 +19,7 @@ const float g_zNear = 1.0f;
 const float g_zFar = 1000.0f;
 
 Renderer::RenderMode g_renderMode = Renderer::MIP_APPROX;
+const auto g_backFormat = Format::B8G8R8A8_UNORM;
 
 IrradianceMap::IrradianceMap(uint32_t width, uint32_t height, wstring name) :
 	DXFramework(width, height, name),
@@ -85,8 +86,7 @@ void IrradianceMap::LoadPipeline()
 	}
 #endif
 
-	com_ptr<IDXGIFactory4> factory;
-	ThrowIfFailed(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&factory)));
+	ThrowIfFailed(CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&m_factory)));
 
 	DXGI_ADAPTER_DESC1 dxgiAdapterDesc;
 	com_ptr<IDXGIAdapter1> dxgiAdapter;
@@ -94,7 +94,7 @@ void IrradianceMap::LoadPipeline()
 	for (auto i = 0u; hr == DXGI_ERROR_UNSUPPORTED; ++i)
 	{
 		dxgiAdapter = nullptr;
-		ThrowIfFailed(factory->EnumAdapters1(i, &dxgiAdapter));
+		ThrowIfFailed(m_factory->EnumAdapters1(i, &dxgiAdapter));
 
 		m_device = Device::MakeUnique();
 		hr = m_device->Create(dxgiAdapter.get(), D3D_FEATURE_LEVEL_11_0);
@@ -127,29 +127,23 @@ void IrradianceMap::LoadPipeline()
 	XUSG_N_RETURN(m_commandQueue->Create(m_device.get(), CommandListType::DIRECT, CommandQueueFlag::NONE,
 		0, 0, L"CommandQueue"), ThrowIfFailed(E_FAIL));
 
-	// Describe and create the swap chain.
-	m_swapChain = SwapChain::MakeUnique();
-	XUSG_N_RETURN(m_swapChain->Create(factory.get(), Win32Application::GetHwnd(), m_commandQueue.get(),
-		FrameCount, m_width, m_height, Format::B8G8R8A8_UNORM), ThrowIfFailed(E_FAIL));
+	// Create the swap chain.
+	CreateSwapchain();
 
-	// This sample does not support fullscreen transitions.
-	ThrowIfFailed(factory->MakeWindowAssociation(Win32Application::GetHwnd(), DXGI_MWA_NO_ALT_ENTER));
-
+	// Reset the index to the current back buffer.
 	m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
 
-	m_descriptorTableCache = DescriptorTableCache::MakeShared(m_device.get(), L"DescriptorTableCache");
-
-	// Create frame resources.
-	// Create a RTV and a command allocator for each frame.
+	// Create a command allocator for each frame.
 	for (uint8_t n = 0; n < FrameCount; ++n)
 	{
-		m_renderTargets[n] = RenderTarget::MakeUnique();
-		XUSG_N_RETURN(m_renderTargets[n]->CreateFromSwapChain(m_device.get(), m_swapChain.get(), n), ThrowIfFailed(E_FAIL));
-
 		m_commandAllocators[n] = CommandAllocator::MakeUnique();
 		XUSG_N_RETURN(m_commandAllocators[n]->Create(m_device.get(), CommandListType::DIRECT,
 			(L"CommandAllocator" + to_wstring(n)).c_str()), ThrowIfFailed(E_FAIL));
 	}
+
+	// Create descriptor table cache.
+	m_descriptorTableCache = DescriptorTableCache::MakeShared(m_device.get(), L"DescriptorTableCache");
+
 }
 
 // Load the sample assets.
@@ -161,23 +155,15 @@ void IrradianceMap::LoadAssets()
 	XUSG_N_RETURN(pCommandList->Create(m_device.get(), 0, CommandListType::DIRECT,
 		m_commandAllocators[m_frameIndex].get(), nullptr), ThrowIfFailed(E_FAIL));
 
-	m_lightProbe = make_unique<LightProbe>();
-	if (!m_lightProbe) ThrowIfFailed(E_FAIL);
-
-	shared_ptr<ShaderResource::sptr> source;
 	vector<Resource::uptr> uploaders(0);
-	if (!m_lightProbe->Init(pCommandList, m_width, m_height, m_descriptorTableCache, uploaders,
-		m_envFileNames.data(), static_cast<uint32_t>(m_envFileNames.size()), m_typedUAV))
-		ThrowIfFailed(E_FAIL);
+
+	m_lightProbe = make_unique<LightProbe>();
+	XUSG_N_RETURN(m_lightProbe->Init(pCommandList, m_descriptorTableCache, uploaders, m_envFileNames.data(),
+		static_cast<uint32_t>(m_envFileNames.size()), m_typedUAV), ThrowIfFailed(E_FAIL));
 
 	m_renderer = make_unique<Renderer>();
-	if (!m_renderer) ThrowIfFailed(E_FAIL);
-
-	if (!m_renderer->Init(pCommandList, m_width, m_height, m_descriptorTableCache,
-		uploaders, m_meshFileName.c_str(), Format::B8G8R8A8_UNORM, m_meshPosScale))
-		ThrowIfFailed(E_FAIL);
-	if (!m_renderer->SetLightProbes(m_lightProbe->GetIrradiance()->GetSRV(), m_lightProbe->GetRadiance()->GetSRV()))
-		ThrowIfFailed(E_FAIL);
+	XUSG_N_RETURN(m_renderer->Init(pCommandList, m_descriptorTableCache, uploaders,
+		m_meshFileName.c_str(), g_backFormat, m_meshPosScale), ThrowIfFailed(E_FAIL));
 
 	if (g_renderMode == Renderer::GROUND_TRUTH)
 	{
@@ -208,6 +194,10 @@ void IrradianceMap::LoadAssets()
 		WaitForGpu();
 	}
 
+	// Create window size dependent resources.
+	//m_descriptorTableCache->ResetDescriptorPool(CBV_SRV_UAV_POOL, 0);
+	CreateResources();
+
 	// Projection
 	const auto aspectRatio = m_width / static_cast<float>(m_height);
 	const auto proj = XMMatrixPerspectiveFovLH(g_FOVAngleY, aspectRatio, g_zNear, g_zFar);
@@ -220,6 +210,33 @@ void IrradianceMap::LoadAssets()
 	const auto eyePt = XMLoadFloat3(&m_eyePt);
 	const auto view = XMMatrixLookAtLH(eyePt, focusPt, XMVectorSet(0.0f, 1.0f, 0.0f, 1.0f));
 	XMStoreFloat4x4(&m_view, view);
+}
+
+void IrradianceMap::CreateSwapchain()
+{
+	// Describe and create the swap chain.
+	m_swapChain = SwapChain::MakeUnique();
+	XUSG_N_RETURN(m_swapChain->Create(m_factory.get(), Win32Application::GetHwnd(), m_commandQueue.get(),
+		FrameCount, m_width, m_height, g_backFormat, SwapChainFlag::ALLOW_TEARING), ThrowIfFailed(E_FAIL));
+
+	// This class does not support exclusive full-screen mode and prevents DXGI from responding to the ALT+ENTER shortcut.
+	ThrowIfFailed(m_factory->MakeWindowAssociation(Win32Application::GetHwnd(), DXGI_MWA_NO_ALT_ENTER));
+}
+
+void IrradianceMap::CreateResources()
+{
+	// Obtain the back buffers for this window which will be the final render targets
+	// and create render target views for each of them.
+	for (uint8_t n = 0; n < FrameCount; ++n)
+	{
+		m_renderTargets[n] = RenderTarget::MakeUnique();
+		XUSG_N_RETURN(m_renderTargets[n]->CreateFromSwapChain(m_device.get(), m_swapChain.get(), n), ThrowIfFailed(E_FAIL));
+	}
+
+	XUSG_N_RETURN(m_lightProbe->CreateDescriptorTables(m_device.get()), ThrowIfFailed(E_FAIL));
+	XUSG_N_RETURN(m_renderer->SetLightProbes(m_lightProbe->GetIrradiance()->GetSRV(),
+		m_lightProbe->GetRadiance()->GetSRV()), ThrowIfFailed(E_FAIL));
+	XUSG_N_RETURN(m_renderer->SetViewport(m_device.get(), m_width, m_height), ThrowIfFailed(E_FAIL));
 }
 
 // Update frame-based values.
@@ -253,7 +270,7 @@ void IrradianceMap::OnRender()
 	m_commandQueue->ExecuteCommandList(m_commandList.get());
 
 	// Present the frame.
-	XUSG_N_RETURN(m_swapChain->Present(0, 0), ThrowIfFailed(E_FAIL));
+	XUSG_N_RETURN(m_swapChain->Present(0, PresentFlag::ALLOW_TEARING), ThrowIfFailed(E_FAIL));
 
 	MoveToNextFrame();
 }
@@ -265,6 +282,71 @@ void IrradianceMap::OnDestroy()
 	WaitForGpu();
 
 	CloseHandle(m_fenceEvent);
+}
+
+void IrradianceMap::OnWindowSizeChanged(int width, int height)
+{
+	if (!Win32Application::GetHwnd())
+	{
+		throw std::exception("Call SetWindow with a valid Win32 window handle");
+	}
+
+	// Wait until all previous GPU work is complete.
+	WaitForGpu();
+
+	// Release resources that are tied to the swap chain and update fence values.
+	for (uint8_t n = 0; n < FrameCount; ++n)
+	{
+		m_renderTargets[n].reset();
+		m_fenceValues[n] = m_fenceValues[m_frameIndex];
+	}
+	m_descriptorTableCache->ResetDescriptorPool(CBV_SRV_UAV_POOL, 0);
+	m_descriptorTableCache->ResetDescriptorPool(RTV_POOL, 0);
+
+	// Determine the render target size in pixels.
+	m_width = (max)(width, 1);
+	m_height = (max)(height, 1);
+
+	// If the swap chain already exists, resize it, otherwise create one.
+	if (m_swapChain)
+	{
+		// If the swap chain already exists, resize it.
+		const auto hr = m_swapChain->ResizeBuffers(FrameCount, m_width,
+			m_height, g_backFormat, SwapChainFlag::ALLOW_TEARING);
+
+		if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
+		{
+#ifdef _DEBUG
+			char buff[64] = {};
+			sprintf_s(buff, "Device Lost on ResizeBuffers: Reason code 0x%08X\n", (hr == DXGI_ERROR_DEVICE_REMOVED) ? m_device->GetDeviceRemovedReason() : hr);
+			OutputDebugStringA(buff);
+#endif
+			// If the device was removed for any reason, a new device and swap chain will need to be created.
+			//HandleDeviceLost();
+
+			// Everything is set up now. Do not continue execution of this method. HandleDeviceLost will reenter this method 
+			// and correctly set up the new device.
+			return;
+		}
+		else
+		{
+			ThrowIfFailed(hr);
+		}
+	}
+	else CreateSwapchain();
+
+	// Reset the index to the current back buffer.
+	m_frameIndex = m_swapChain->GetCurrentBackBufferIndex();
+
+	// Create window size dependent resources.
+	CreateResources();
+
+	// Projection
+	{
+		const auto aspectRatio = m_width / static_cast<float>(m_height);
+		const auto proj = XMMatrixPerspectiveFovLH(g_FOVAngleY, aspectRatio, g_zNear, g_zFar);
+		XMStoreFloat4x4(&m_proj, proj);
+	}
 }
 
 // User hot-key interactions.

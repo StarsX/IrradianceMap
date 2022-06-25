@@ -28,9 +28,8 @@ LightProbe::~LightProbe()
 {
 }
 
-bool LightProbe::Init(CommandList* pCommandList, uint32_t width, uint32_t height,
-	const DescriptorTableCache::sptr& descriptorTableCache, vector<Resource::uptr>& uploaders,
-	const wstring pFileNames[], uint32_t numFiles, bool typedUAV)
+bool LightProbe::Init(CommandList* pCommandList, const DescriptorTableCache::sptr& descriptorTableCache,
+	vector<Resource::uptr>& uploaders, const wstring pFileNames[], uint32_t numFiles, bool typedUAV)
 {
 	const auto pDevice = pCommandList->GetDevice();
 	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(pDevice);
@@ -82,13 +81,17 @@ bool LightProbe::Init(CommandList* pCommandList, uint32_t width, uint32_t height
 
 	XUSG_N_RETURN(createPipelineLayouts(), false);
 	XUSG_N_RETURN(createPipelines(format, typedUAV), false);
-	XUSG_N_RETURN(createDescriptorTables(), false);
-
-	m_sphericalHarmonics = SphericalHarmonics::MakeUnique();
-	XUSG_N_RETURN(m_sphericalHarmonics->Init(pDevice, m_shaderPool, m_computePipelineCache,
-		m_pipelineLayoutCache, m_descriptorTableCache, CS_SH, 0), false);
 
 	return true;
+}
+
+bool LightProbe::CreateDescriptorTables(Device* pDevice)
+{
+	m_sphericalHarmonics = SphericalHarmonics::MakeUnique();
+	XUSG_N_RETURN(m_sphericalHarmonics->Init(pDevice, m_shaderPool, m_computePipelineCache,
+		m_pipelineLayoutCache, m_descriptorTableCache, 0), false);
+
+	return createDescriptorTables();
 }
 
 void LightProbe::UpdateFrame(double time, uint8_t frameIndex)

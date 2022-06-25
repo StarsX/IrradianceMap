@@ -34,6 +34,8 @@ public:
 	virtual void OnRender();
 	virtual void OnDestroy();
 
+	virtual void OnWindowSizeChanged(int width, int height);
+
 	virtual void OnKeyUp(uint8_t /*key*/);
 	virtual void OnLButtonDown(float posX, float posY);
 	virtual void OnLButtonUp(float posX, float posY);
@@ -46,6 +48,8 @@ public:
 private:
 	static const uint8_t FrameCount = LightProbe::FrameCount;
 	static_assert(FrameCount == Renderer::FrameCount, "IrradianceMap::FrameCount should be equal to Renderer::FrameCount");
+
+	XUSG::com_ptr<IDXGIFactory5> m_factory;
 
 	std::shared_ptr<XUSG::DescriptorTableCache> m_descriptorTableCache;
 
@@ -60,7 +64,6 @@ private:
 	// App resources.
 	std::unique_ptr<LightProbe>	m_lightProbe;
 	std::unique_ptr<Renderer>	m_renderer;
-	//XUSG::DepthStencil::uptr	m_depth;
 	XMFLOAT4X4	m_proj;
 	XMFLOAT4X4	m_view;
 	XMFLOAT3	m_focusPt;
@@ -92,7 +95,8 @@ private:
 
 	void LoadPipeline();
 	void LoadAssets();
-
+	void CreateSwapchain();
+	void CreateResources();
 	void PopulateCommandList();
 	void WaitForGpu();
 	void MoveToNextFrame();

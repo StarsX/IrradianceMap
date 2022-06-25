@@ -34,9 +34,8 @@ Renderer::~Renderer()
 {
 }
 
-bool Renderer::Init(CommandList* pCommandList, uint32_t width, uint32_t height,
-	const DescriptorTableCache::sptr& descriptorTableCache, vector<Resource::uptr>& uploaders,
-	const char* fileName, Format rtFormat, const XMFLOAT4& posScale)
+bool Renderer::Init(CommandList* pCommandList, const DescriptorTableCache::sptr& descriptorTableCache,
+	vector<Resource::uptr>& uploaders, const char* fileName, Format rtFormat, const XMFLOAT4& posScale)
 {
 	const auto pDevice = pCommandList->GetDevice();
 	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(pDevice);
@@ -44,7 +43,6 @@ bool Renderer::Init(CommandList* pCommandList, uint32_t width, uint32_t height,
 	m_pipelineLayoutCache = PipelineLayoutCache::MakeUnique(pDevice);
 	m_descriptorTableCache = descriptorTableCache;
 
-	m_viewport = XMUINT2(width, height);
 	m_posScale = posScale;
 
 	// Load inputs
@@ -52,6 +50,27 @@ bool Renderer::Init(CommandList* pCommandList, uint32_t width, uint32_t height,
 	if (!objLoader.Import(fileName, true, true)) return false;
 	XUSG_N_RETURN(createVB(pCommandList, objLoader.GetNumVertices(), objLoader.GetVertexStride(), objLoader.GetVertices(), uploaders), false);
 	XUSG_N_RETURN(createIB(pCommandList, objLoader.GetNumIndices(), objLoader.GetIndices(), uploaders), false);
+
+	// Create constant buffers
+	m_cbBasePass = ConstantBuffer::MakeUnique();
+	XUSG_N_RETURN(m_cbBasePass->Create(pDevice, sizeof(CBBasePass[FrameCount]), FrameCount,
+		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"CBBasePass"), false);
+
+	m_cbPerFrame = ConstantBuffer::MakeUnique();
+	XUSG_N_RETURN(m_cbPerFrame->Create(pDevice, sizeof(CBPerFrame[FrameCount]), FrameCount,
+		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"CBPerFrame"), false);
+
+	// Create pipelines
+	XUSG_N_RETURN(createInputLayout(), false);
+	XUSG_N_RETURN(createPipelineLayouts(), false);
+	XUSG_N_RETURN(createPipelines(rtFormat), false);
+
+	return true;
+}
+
+bool Renderer::SetViewport(const Device* pDevice, uint32_t width, uint32_t height)
+{
+	m_viewport = XMUINT2(width, height);
 
 	// Create output views
 	// Render targets
@@ -73,22 +92,7 @@ bool Renderer::Init(CommandList* pCommandList, uint32_t width, uint32_t height,
 	m_outputViews[UAV_PP_TAA1]->Create(pDevice, width, height, Format::R16G16B16A16_FLOAT, 1,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, false, MemoryFlag::NONE, L"TemporalAAOut1");
 
-	// Create constant buffers
-	m_cbBasePass = ConstantBuffer::MakeUnique();
-	XUSG_N_RETURN(m_cbBasePass->Create(pDevice, sizeof(CBBasePass[FrameCount]), FrameCount,
-		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"CBBasePass"), false);
-
-	m_cbPerFrame = ConstantBuffer::MakeUnique();
-	XUSG_N_RETURN(m_cbPerFrame->Create(pDevice, sizeof(CBPerFrame[FrameCount]), FrameCount,
-		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"CBPerFrame"), false);
-
-	// Create pipelines
-	XUSG_N_RETURN(createInputLayout(), false);
-	XUSG_N_RETURN(createPipelineLayouts(), false);
-	XUSG_N_RETURN(createPipelines(rtFormat), false);
-	XUSG_N_RETURN(createDescriptorTables(), false);
-
-	return true;
+	return createDescriptorTables();
 }
 
 bool Renderer::SetLightProbes(const Descriptor& irradiance, const Descriptor& radiance)
