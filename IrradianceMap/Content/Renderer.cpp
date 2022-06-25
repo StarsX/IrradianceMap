@@ -75,22 +75,22 @@ bool Renderer::SetViewport(const Device* pDevice, uint32_t width, uint32_t heigh
 	// Create output views
 	// Render targets
 	for (auto& renderTarget : m_renderTargets) renderTarget = RenderTarget::MakeUnique();
-	m_renderTargets[RT_COLOR]->Create(pDevice, width, height, Format::R16G16B16A16_FLOAT,
-		1, ResourceFlag::NONE, 1, 1, nullptr, false, MemoryFlag::NONE, L"Color");
-	m_renderTargets[RT_VELOCITY]->Create(pDevice, width, height, Format::R16G16_FLOAT,
-		1, ResourceFlag::NONE, 1, 1, nullptr, false, MemoryFlag::NONE, L"Velocity");
+	XUSG_N_RETURN(m_renderTargets[RT_COLOR]->Create(pDevice, width, height, Format::R16G16B16A16_FLOAT,
+		1, ResourceFlag::NONE, 1, 1, nullptr, false, MemoryFlag::NONE, L"Color"), false);
+	XUSG_N_RETURN(m_renderTargets[RT_VELOCITY]->Create(pDevice, width, height, Format::R16G16_FLOAT,
+		1, ResourceFlag::NONE, 1, 1, nullptr, false, MemoryFlag::NONE, L"Velocity"), false);
 
 	m_depth = DepthStencil::MakeUnique();
-	m_depth->Create(pDevice, width, height, Format::D24_UNORM_S8_UINT,
+	XUSG_N_RETURN(m_depth->Create(pDevice, width, height, Format::D24_UNORM_S8_UINT,
 		ResourceFlag::DENY_SHADER_RESOURCE, 1, 1, 1, 1.0f, 0, false,
-		MemoryFlag::NONE, L"Depth");
+		MemoryFlag::NONE, L"Depth"), false);
 
 	// Temporal AA
 	for (auto& outView : m_outputViews) outView = Texture2D::MakeUnique();
-	m_outputViews[UAV_PP_TAA]->Create(pDevice, width, height, Format::R16G16B16A16_FLOAT, 1,
-		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, false, MemoryFlag::NONE, L"TemporalAAOut0");
-	m_outputViews[UAV_PP_TAA1]->Create(pDevice, width, height, Format::R16G16B16A16_FLOAT, 1,
-		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, false, MemoryFlag::NONE, L"TemporalAAOut1");
+	XUSG_N_RETURN(m_outputViews[UAV_PP_TAA]->Create(pDevice, width, height, Format::R16G16B16A16_FLOAT, 1,
+		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, false, MemoryFlag::NONE, L"TemporalAAOut0"), false);
+	XUSG_N_RETURN(m_outputViews[UAV_PP_TAA1]->Create(pDevice, width, height, Format::R16G16B16A16_FLOAT, 1,
+		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, false, MemoryFlag::NONE, L"TemporalAAOut1"), false);
 
 	return createDescriptorTables();
 }

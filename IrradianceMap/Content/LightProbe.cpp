@@ -60,14 +60,14 @@ bool LightProbe::Init(CommandList* pCommandList, const DescriptorTableCache::spt
 
 	const auto format = Format::R11G11B10_FLOAT;
 	m_irradiance = RenderTarget::MakeUnique();
-	m_irradiance->Create(pDevice, texWidth, texHeight, format, 6,
+	XUSG_N_RETURN(m_irradiance->Create(pDevice, texWidth, texHeight, format, 6,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, cb.NumLevels, 1,
-		nullptr, true, MemoryFlag::NONE, L"Irradiance");
+		nullptr, true, MemoryFlag::NONE, L"Irradiance"), false);
 
 	m_radiance = RenderTarget::MakeUnique();
-	m_radiance->Create(pDevice, texWidth, texHeight, format, 6,
+	XUSG_N_RETURN(m_radiance->Create(pDevice, texWidth, texHeight, format, 6,
 		ResourceFlag::ALLOW_UNORDERED_ACCESS, 1, 1, nullptr, true,
-		MemoryFlag::NONE, L"Radiance");
+		MemoryFlag::NONE, L"Radiance"), false);
 
 	// Create constant buffers
 	m_cbImmutable = ConstantBuffer::MakeUnique();
