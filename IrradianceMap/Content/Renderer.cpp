@@ -218,14 +218,6 @@ void Renderer::UpdateFrame(uint8_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewPr
 void Renderer::Render(CommandList* pCommandList, uint8_t frameIndex, ResourceBarrier* barriers,
 	uint32_t numBarriers, RenderMode mode, bool needClear)
 {
-	// Set Descriptor pools
-	const DescriptorPool descriptorPools[] =
-	{
-		m_descriptorTableCache->GetDescriptorPool(CBV_SRV_UAV_POOL),
-		m_descriptorTableCache->GetDescriptorPool(SAMPLER_POOL)
-	};
-	pCommandList->SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
-
 	numBarriers = m_renderTargets[RT_COLOR]->SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
 	numBarriers = m_renderTargets[RT_VELOCITY]->SetBarrier(barriers, ResourceState::RENDER_TARGET, numBarriers);
 	numBarriers = m_depth->SetBarrier(barriers, ResourceState::DEPTH_WRITE, numBarriers);
@@ -574,14 +566,7 @@ void Renderer::environment(const CommandList* pCommandList, uint8_t frameIndex)
 
 void Renderer::temporalAA(CommandList* pCommandList)
 {
-	// Bind the heaps, acceleration structure and dispatch rays.
-	const DescriptorPool descriptorPools[] =
-	{
-		m_descriptorTableCache->GetDescriptorPool(CBV_SRV_UAV_POOL),
-		m_descriptorTableCache->GetDescriptorPool(SAMPLER_POOL)
-	};
-	pCommandList->SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
-
+	// Bind the acceleration structure and dispatch rays.
 	ResourceBarrier barriers[4];
 	auto numBarriers = m_outputViews[UAV_PP_TAA + m_frameParity]->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS);
 	numBarriers = m_renderTargets[RT_COLOR]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);

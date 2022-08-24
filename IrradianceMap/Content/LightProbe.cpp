@@ -110,14 +110,6 @@ void LightProbe::UpdateFrame(double time, uint8_t frameIndex)
 
 void LightProbe::Process(CommandList* pCommandList, uint8_t frameIndex, PipelineType pipelineType)
 {
-	// Set Descriptor pools
-	const DescriptorPool descriptorPools[] =
-	{
-		m_descriptorTableCache->GetDescriptorPool(CBV_SRV_UAV_POOL),
-		m_descriptorTableCache->GetDescriptorPool(SAMPLER_POOL)
-	};
-	pCommandList->SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
-
 	ResourceBarrier barriers[13];
 	uint32_t numBarriers;
 

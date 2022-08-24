@@ -484,6 +484,14 @@ void IrradianceMap::PopulateCommandList()
 	XUSG_N_RETURN(pCommandList->Reset(pCommandAllocator, nullptr), ThrowIfFailed(E_FAIL));
 
 	// Record commands.
+	// Set Descriptor pools
+	const DescriptorPool descriptorPools[] =
+	{
+		m_descriptorTableCache->GetDescriptorPool(CBV_SRV_UAV_POOL),
+		m_descriptorTableCache->GetDescriptorPool(SAMPLER_POOL)
+	};
+	pCommandList->SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
+
 	m_lightProbe->Process(pCommandList, m_frameIndex, m_pipelineType);	// V-cycle
 
 	const auto renderMode = m_pipelineType == LightProbe::SH && g_renderMode != Renderer::GROUND_TRUTH ? Renderer::SH_APPROX : g_renderMode;
