@@ -566,7 +566,7 @@ void Renderer::environment(const CommandList* pCommandList, uint8_t frameIndex)
 
 void Renderer::temporalAA(CommandList* pCommandList)
 {
-	// Bind the acceleration structure and dispatch rays.
+	// Set barriers
 	ResourceBarrier barriers[4];
 	auto numBarriers = m_outputViews[UAV_PP_TAA + m_frameParity]->SetBarrier(barriers, ResourceState::UNORDERED_ACCESS);
 	numBarriers = m_renderTargets[RT_COLOR]->SetBarrier(barriers, ResourceState::NON_PIXEL_SHADER_RESOURCE, numBarriers);
