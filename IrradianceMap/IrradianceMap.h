@@ -51,7 +51,7 @@ private:
 
 	XUSG::com_ptr<IDXGIFactory5> m_factory;
 
-	std::shared_ptr<XUSG::DescriptorTableCache> m_descriptorTableCache;
+	XUSG::DescriptorTableCache::sptr m_descriptorTableCache;
 
 	XUSG::SwapChain::uptr			m_swapChain;
 	XUSG::CommandAllocator::uptr	m_commandAllocators[FrameCount];
