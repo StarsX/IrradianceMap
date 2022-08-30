@@ -2,9 +2,12 @@
 // Copyright (c) XU, Tianchen. All rights reserved.
 //--------------------------------------------------------------------------------------
 
-#include "DXFrameworkHelper.h"
-#include "Optional/XUSGObjLoader.h"
+//#include "DXFrameworkHelper.h"
 #include "Renderer.h"
+#define _INDEPENDENT_HALTON_
+#include "Advanced/XUSGHalton.h"
+#undef _INDEPENDENT_HALTON_
+#include "Optional/XUSGObjLoader.h"
 
 using namespace std;
 using namespace DirectX;
@@ -120,63 +123,6 @@ bool Renderer::SetLightProbesSH(const StructuredBuffer::sptr& coeffSH)
 	m_coeffSH = coeffSH;
 
 	return true;
-}
-
-static const XMFLOAT2& IncrementalHalton()
-{
-	static auto haltonBase = XMUINT2(0, 0);
-	static auto halton = XMFLOAT2(0.0f, 0.0f);
-
-	// Base 2
-	{
-		// Bottom bit always changes, higher bits
-		// Change less frequently.
-		auto change = 0.5f;
-		auto oldBase = haltonBase.x++;
-		auto diff = haltonBase.x ^ oldBase;
-
-		// Diff will be of the form 0*1+, i.e. one bits up until the last carry.
-		// Expected iterations = 1 + 0.5 + 0.25 + ... = 2
-		do
-		{
-			halton.x += (oldBase & 1) ? -change : change;
-			change *= 0.5f;
-
-			diff = diff >> 1;
-			oldBase = oldBase >> 1;
-		} while (diff);
-	}
-
-	// Base 3
-	{
-		const auto oneThird = 1.0f / 3.0f;
-		auto mask = 0x3u;	// Also the max base 3 digit
-		auto add = 0x1u;	// Amount to add to force carry once digit == 3
-		auto change = oneThird;
-		++haltonBase.y;
-
-		// Expected iterations: 1.5
-		while (true)
-		{
-			if ((haltonBase.y & mask) == mask)
-			{
-				haltonBase.y += add;	// Force carry into next 2-bit digit
-				halton.y -= 2 * change;
-
-				mask = mask << 2;
-				add = add << 2;
-
-				change *= oneThird;
-			}
-			else
-			{
-				halton.y += change;	// We know digit n has gone from a to a + 1
-				break;
-			}
-		};
-	}
-
-	return halton;
 }
 
 void Renderer::UpdateFrame(uint8_t frameIndex, CXMVECTOR eyePt, CXMMATRIX viewProj, float glossy, bool isPaused)

@@ -182,7 +182,6 @@ COPY /Y "$(ProjectDir)XUSG\Bin\$(Platform)\$(Configuration)\*.dll" "$(ProjectDir
     <ClInclude Include="Common\d3d12.h" />
     <ClInclude Include="Common\d3dcommon.h" />
     <ClInclude Include="Common\d3dx12.h" />
-    <ClInclude Include="Common\dds.h" />
     <ClInclude Include="Common\DXFramework.h" />
     <ClInclude Include="Common\DXFrameworkHelper.h" />
     <ClInclude Include="Common\dxgicommon.h" />
@@ -194,6 +193,7 @@ COPY /Y "$(ProjectDir)XUSG\Bin\$(Platform)\$(Configuration)\*.dll" "$(ProjectDir
     <ClInclude Include="IrradianceMap.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="XUSG\Advanced\XUSGDDSLoader.h" />
+    <ClInclude Include="XUSG\Advanced\XUSGHalton.h" />
     <ClInclude Include="XUSG\Advanced\XUSGSHSharedConsts.h" />
     <ClInclude Include="XUSG\Advanced\XUSGSphericalHarmonics.h" />
     <ClInclude Include="XUSG\Core\XUSG.h" />
