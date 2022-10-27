@@ -2,6 +2,10 @@
 // Copyright (c) XU, Tianchen. All rights reserved.
 //--------------------------------------------------------------------------------------
 
+#ifndef PI
+#define PI 3.1415926535897
+#endif
+
 //--------------------------------------------------------------------------------------
 // Structs
 //--------------------------------------------------------------------------------------
@@ -88,7 +92,7 @@ PSOut Shade(PSIn input, min16float3 norm, float3 irradiance)
 #endif
 
 	//output.Color = min16float4(norm * 0.5 + 0.5, 1.0);
-	output.Color = min16float4(irradiance + radiance * g_glossy, 1.0);
+	output.Color = min16float4(irradiance / PI + radiance * g_glossy, 1.0);
 	output.Velocity = min16float4(velocity, 0.0.xx);
 
 	return output;
@@ -103,6 +107,7 @@ PSOut main(PSIn input)
 	const min16float3 norm = min16float3(normalize(input.Norm));
 	//float3 irradiance = g_txIrradiance.Sample(g_sampler, input.Norm);
 	float3 irradiance = g_txIrradiance.SampleLevel(g_sampler, input.Norm, 0.0);
+	irradiance *= PI;
 
 	return Shade(input, norm, irradiance);
 }

@@ -17,7 +17,7 @@ StructuredBuffer<float3> g_roSHBuff;
 PSOut main(PSIn input)
 {
 	const min16float3 norm = min16float3(normalize(input.Norm));
-	float3 irradiance = EvaluateSHIrradiance(g_roSHBuff, norm);
+	const float4 irradiance = EvaluateSHIrradiance(g_roSHBuff, norm);
 
-	return Shade(input, norm, irradiance);
+	return Shade(input, norm, irradiance.xyz);
 }
