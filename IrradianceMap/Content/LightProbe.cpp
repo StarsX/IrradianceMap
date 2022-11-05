@@ -21,21 +21,21 @@ struct CBImmutable
 LightProbe::LightProbe() :
 	m_groundTruth(nullptr)
 {
-	m_shaderPool = ShaderPool::MakeShared();
+	m_shaderLib = ShaderLib::MakeShared();
 }
 
 LightProbe::~LightProbe()
 {
 }
 
-bool LightProbe::Init(CommandList* pCommandList, const DescriptorTableCache::sptr& descriptorTableCache,
+bool LightProbe::Init(CommandList* pCommandList, const DescriptorTableLib::sptr& descriptorTableLib,
 	vector<Resource::uptr>& uploaders, const wstring pFileNames[], uint32_t numFiles, bool typedUAV)
 {
 	const auto pDevice = pCommandList->GetDevice();
-	m_graphicsPipelineCache = Graphics::PipelineCache::MakeUnique(pDevice);
-	m_computePipelineCache = Compute::PipelineCache::MakeShared(pDevice);
-	m_pipelineLayoutCache = PipelineLayoutCache::MakeShared(pDevice);
-	m_descriptorTableCache = descriptorTableCache;
+	m_graphicsPipelineLib = Graphics::PipelineLib::MakeUnique(pDevice);
+	m_computePipelineLib = Compute::PipelineLib::MakeShared(pDevice);
+	m_pipelineLayoutLib = PipelineLayoutLib::MakeShared(pDevice);
+	m_descriptorTableLib = descriptorTableLib;
 
 	// Load input image
 	auto texWidth = 1u, texHeight = 1u;
@@ -88,8 +88,8 @@ bool LightProbe::Init(CommandList* pCommandList, const DescriptorTableCache::spt
 bool LightProbe::CreateDescriptorTables(Device* pDevice)
 {
 	m_sphericalHarmonics = SphericalHarmonics::MakeUnique();
-	XUSG_N_RETURN(m_sphericalHarmonics->Init(pDevice, m_shaderPool, m_computePipelineCache,
-		m_pipelineLayoutCache, m_descriptorTableCache, 0), false);
+	XUSG_N_RETURN(m_sphericalHarmonics->Init(pDevice, m_shaderLib, m_computePipelineLib,
+		m_pipelineLayoutLib, m_descriptorTableLib, 0), false);
 
 	return createDescriptorTables();
 }
@@ -179,12 +179,12 @@ bool LightProbe::createPipelineLayouts()
 		const auto utilPipelineLayout = Util::PipelineLayout::MakeUnique();
 		utilPipelineLayout->SetRange(0, DescriptorType::SAMPLER, 1, 0);
 		utilPipelineLayout->SetRootCBV(1, 0, 0, Shader::PS);
-		utilPipelineLayout->SetConstants(2, XUSG_SizeOfInUint32(uint32_t), 1, 0, Shader::PS);
+		utilPipelineLayout->SetConstants(2, XUSG_UINT32_SIZE_OF(uint32_t), 1, 0, Shader::PS);
 		utilPipelineLayout->SetRange(3, DescriptorType::SRV, 2, 0);
 		utilPipelineLayout->SetShaderStage(0, Shader::PS);
 		utilPipelineLayout->SetShaderStage(3, Shader::PS);
 		XUSG_X_RETURN(m_pipelineLayouts[GEN_RADIANCE_GRAPHICS], utilPipelineLayout->GetPipelineLayout(
-			m_pipelineLayoutCache.get(), PipelineLayoutFlag::NONE, L"RadianceGenerationLayout"), false);
+			m_pipelineLayoutLib.get(), PipelineLayoutFlag::NONE, L"RadianceGenerationLayout"), false);
 	}
 
 	// Generate Radiance compute
@@ -195,7 +195,7 @@ bool LightProbe::createPipelineLayouts()
 		utilPipelineLayout->SetRange(2, DescriptorType::UAV, 1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		utilPipelineLayout->SetRange(3, DescriptorType::SRV, 2, 0);
 		XUSG_X_RETURN(m_pipelineLayouts[GEN_RADIANCE_COMPUTE], utilPipelineLayout->GetPipelineLayout(
-			m_pipelineLayoutCache.get(), PipelineLayoutFlag::NONE, L"RadianceGenerationLayout"), false);
+			m_pipelineLayoutLib.get(), PipelineLayoutFlag::NONE, L"RadianceGenerationLayout"), false);
 	}
 
 	// Resampling graphics
@@ -203,11 +203,11 @@ bool LightProbe::createPipelineLayouts()
 		const auto utilPipelineLayout = Util::PipelineLayout::MakeUnique();
 		utilPipelineLayout->SetRange(0, DescriptorType::SAMPLER, 1, 0);
 		utilPipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
-		utilPipelineLayout->SetConstants(2, XUSG_SizeOfInUint32(uint32_t), 0, 0, Shader::PS);
+		utilPipelineLayout->SetConstants(2, XUSG_UINT32_SIZE_OF(uint32_t), 0, 0, Shader::PS);
 		utilPipelineLayout->SetShaderStage(0, Shader::PS);
 		utilPipelineLayout->SetShaderStage(1, Shader::PS);
 		XUSG_X_RETURN(m_pipelineLayouts[RESAMPLE_GRAPHICS], utilPipelineLayout->GetPipelineLayout(
-			m_pipelineLayoutCache.get(), PipelineLayoutFlag::NONE, L"ResamplingGraphicsLayout"), false);
+			m_pipelineLayoutLib.get(), PipelineLayoutFlag::NONE, L"ResamplingGraphicsLayout"), false);
 	}
 
 	// Resampling compute
@@ -217,7 +217,7 @@ bool LightProbe::createPipelineLayouts()
 		utilPipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		utilPipelineLayout->SetRange(2, DescriptorType::SRV, 1, 0);
 		XUSG_X_RETURN(m_pipelineLayouts[RESAMPLE_COMPUTE], utilPipelineLayout->GetPipelineLayout(
-			m_pipelineLayoutCache.get(), PipelineLayoutFlag::NONE, L"ResamplingComputeLayout"), false);
+			m_pipelineLayoutLib.get(), PipelineLayoutFlag::NONE, L"ResamplingComputeLayout"), false);
 	}
 
 	// Up sampling graphics, with alpha blending
@@ -225,12 +225,12 @@ bool LightProbe::createPipelineLayouts()
 		const auto utilPipelineLayout = Util::PipelineLayout::MakeUnique();
 		utilPipelineLayout->SetRange(0, DescriptorType::SAMPLER, 1, 0);
 		utilPipelineLayout->SetRange(1, DescriptorType::SRV, 1, 0);
-		utilPipelineLayout->SetConstants(2, XUSG_SizeOfInUint32(uint32_t[2]), 0, 0, Shader::PS);
+		utilPipelineLayout->SetConstants(2, XUSG_UINT32_SIZE_OF(uint32_t[2]), 0, 0, Shader::PS);
 		utilPipelineLayout->SetRootCBV(3, 1, 0, Shader::PS);
 		utilPipelineLayout->SetShaderStage(0, Shader::PS);
 		utilPipelineLayout->SetShaderStage(1, Shader::PS);
 		XUSG_X_RETURN(m_pipelineLayouts[UP_SAMPLE_BLEND], utilPipelineLayout->GetPipelineLayout(
-			m_pipelineLayoutCache.get(), PipelineLayoutFlag::NONE, L"UpSamplingGraphicsLayout"), false);
+			m_pipelineLayoutLib.get(), PipelineLayoutFlag::NONE, L"UpSamplingGraphicsLayout"), false);
 	}
 
 	// Up sampling compute, in-place
@@ -239,10 +239,10 @@ bool LightProbe::createPipelineLayouts()
 		utilPipelineLayout->SetRange(0, DescriptorType::SAMPLER, 1, 0);
 		utilPipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		utilPipelineLayout->SetRange(2, DescriptorType::SRV, 1, 0);
-		utilPipelineLayout->SetConstants(3, XUSG_SizeOfInUint32(uint32_t), 0);
+		utilPipelineLayout->SetConstants(3, XUSG_UINT32_SIZE_OF(uint32_t), 0);
 		utilPipelineLayout->SetRootCBV(4, 1);
 		XUSG_X_RETURN(m_pipelineLayouts[UP_SAMPLE_INPLACE], utilPipelineLayout->GetPipelineLayout(
-			m_pipelineLayoutCache.get(), PipelineLayoutFlag::NONE, L"UpSamplingComputeLayout"), false);
+			m_pipelineLayoutLib.get(), PipelineLayoutFlag::NONE, L"UpSamplingComputeLayout"), false);
 	}
 
 	// Up sampling graphics, for the final pass
@@ -250,12 +250,12 @@ bool LightProbe::createPipelineLayouts()
 		const auto utilPipelineLayout = Util::PipelineLayout::MakeUnique();
 		utilPipelineLayout->SetRange(0, DescriptorType::SAMPLER, 1, 0);
 		utilPipelineLayout->SetRange(1, DescriptorType::SRV, 2, 0);
-		utilPipelineLayout->SetConstants(2, XUSG_SizeOfInUint32(uint32_t[2]), 0, 0, Shader::PS);
+		utilPipelineLayout->SetConstants(2, XUSG_UINT32_SIZE_OF(uint32_t[2]), 0, 0, Shader::PS);
 		utilPipelineLayout->SetRootCBV(3, 1, 0, Shader::PS);
 		utilPipelineLayout->SetShaderStage(0, Shader::PS);
 		utilPipelineLayout->SetShaderStage(1, Shader::PS);
 		XUSG_X_RETURN(m_pipelineLayouts[FINAL_G], utilPipelineLayout->GetPipelineLayout(
-			m_pipelineLayoutCache.get(), PipelineLayoutFlag::NONE, L"FinalPassGraphicsLayout"), false);
+			m_pipelineLayoutLib.get(), PipelineLayoutFlag::NONE, L"FinalPassGraphicsLayout"), false);
 	}
 
 	// Up sampling compute, for the final pass
@@ -264,10 +264,10 @@ bool LightProbe::createPipelineLayouts()
 		utilPipelineLayout->SetRange(0, DescriptorType::SAMPLER, 1, 0);
 		utilPipelineLayout->SetRange(1, DescriptorType::UAV, 1, 0, 0, DescriptorFlag::DATA_STATIC_WHILE_SET_AT_EXECUTE);
 		utilPipelineLayout->SetRange(2, DescriptorType::SRV, 2, 0);
-		utilPipelineLayout->SetConstants(3, XUSG_SizeOfInUint32(uint32_t), 0);
+		utilPipelineLayout->SetConstants(3, XUSG_UINT32_SIZE_OF(uint32_t), 0);
 		utilPipelineLayout->SetRootCBV(4, 1);
 		XUSG_X_RETURN(m_pipelineLayouts[FINAL_C], utilPipelineLayout->GetPipelineLayout(
-			m_pipelineLayoutCache.get(), PipelineLayoutFlag::NONE, L"FinalPassComputeLayout"), false);
+			m_pipelineLayoutLib.get(), PipelineLayoutFlag::NONE, L"FinalPassComputeLayout"), false);
 	}
 
 	return true;
@@ -279,106 +279,106 @@ bool LightProbe::createPipelines(Format rtFormat, bool typedUAV)
 	auto psIndex = 0u;
 
 	// Generate Radiance graphics
-	XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
+	XUSG_N_RETURN(m_shaderLib->CreateShader(Shader::Stage::VS, vsIndex, L"VSScreenQuad.cso"), false);
 	{
-		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSGenRadiance.cso"), false);
+		XUSG_N_RETURN(m_shaderLib->CreateShader(Shader::Stage::PS, psIndex, L"PSGenRadiance.cso"), false);
 
 		const auto state = Graphics::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[GEN_RADIANCE_GRAPHICS]);
-		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex));
-		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
-		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineCache.get());
+		state->SetShader(Shader::Stage::VS, m_shaderLib->GetShader(Shader::Stage::VS, vsIndex));
+		state->SetShader(Shader::Stage::PS, m_shaderLib->GetShader(Shader::Stage::PS, psIndex++));
+		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineLib.get());
 		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
 		state->OMSetNumRenderTargets(1);
 		state->OMSetRTVFormat(0, rtFormat);
-		XUSG_X_RETURN(m_pipelines[GEN_RADIANCE_GRAPHICS], state->GetPipeline(m_graphicsPipelineCache.get(), L"RadianceGeneration_graphics"), false);
+		XUSG_X_RETURN(m_pipelines[GEN_RADIANCE_GRAPHICS], state->GetPipeline(m_graphicsPipelineLib.get(), L"RadianceGeneration_graphics"), false);
 	}
 
 	// Generate Radiance compute
 	{
-		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, CS_GEN_RADIANCE, L"CSGenRadiance.cso"), false);
+		XUSG_N_RETURN(m_shaderLib->CreateShader(Shader::Stage::CS, CS_GEN_RADIANCE, L"CSGenRadiance.cso"), false);
 
 		const auto state = Compute::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[GEN_RADIANCE_COMPUTE]);
-		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, CS_GEN_RADIANCE));
-		XUSG_X_RETURN(m_pipelines[GEN_RADIANCE_COMPUTE], state->GetPipeline(m_computePipelineCache.get(), L"RadianceGeneration_compute"), false);
+		state->SetShader(m_shaderLib->GetShader(Shader::Stage::CS, CS_GEN_RADIANCE));
+		XUSG_X_RETURN(m_pipelines[GEN_RADIANCE_COMPUTE], state->GetPipeline(m_computePipelineLib.get(), L"RadianceGeneration_compute"), false);
 	}
 
 	// Resampling graphics
 	{
-		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSResample.cso"), false);
+		XUSG_N_RETURN(m_shaderLib->CreateShader(Shader::Stage::PS, psIndex, L"PSResample.cso"), false);
 
 		const auto state = Graphics::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[RESAMPLE_GRAPHICS]);
-		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex));
-		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
-		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineCache.get());
+		state->SetShader(Shader::Stage::VS, m_shaderLib->GetShader(Shader::Stage::VS, vsIndex));
+		state->SetShader(Shader::Stage::PS, m_shaderLib->GetShader(Shader::Stage::PS, psIndex++));
+		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineLib.get());
 		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
 		state->OMSetNumRenderTargets(1);
 		state->OMSetRTVFormat(0, rtFormat);
-		XUSG_X_RETURN(m_pipelines[RESAMPLE_GRAPHICS], state->GetPipeline(m_graphicsPipelineCache.get(), L"Resampling)graphics"), false);
+		XUSG_X_RETURN(m_pipelines[RESAMPLE_GRAPHICS], state->GetPipeline(m_graphicsPipelineLib.get(), L"Resampling)graphics"), false);
 	}
 
 	// Resampling compute
 	{
-		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, CS_RESAMPLE, L"CSResample.cso"), false);
+		XUSG_N_RETURN(m_shaderLib->CreateShader(Shader::Stage::CS, CS_RESAMPLE, L"CSResample.cso"), false);
 
 		const auto state = Compute::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[RESAMPLE_COMPUTE]);
-		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, CS_RESAMPLE));
-		XUSG_X_RETURN(m_pipelines[RESAMPLE_COMPUTE], state->GetPipeline(m_computePipelineCache.get(), L"Resampling_compute"), false);
+		state->SetShader(m_shaderLib->GetShader(Shader::Stage::CS, CS_RESAMPLE));
+		XUSG_X_RETURN(m_pipelines[RESAMPLE_COMPUTE], state->GetPipeline(m_computePipelineLib.get(), L"Resampling_compute"), false);
 	}
 
 	// Up sampling graphics, with alpha blending
 	{
-		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSCosUp_blend.cso"), false);
+		XUSG_N_RETURN(m_shaderLib->CreateShader(Shader::Stage::PS, psIndex, L"PSCosUp_blend.cso"), false);
 
 		const auto state = Graphics::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[UP_SAMPLE_BLEND]);
-		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex));
-		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex++));
-		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineCache.get());
+		state->SetShader(Shader::Stage::VS, m_shaderLib->GetShader(Shader::Stage::VS, vsIndex));
+		state->SetShader(Shader::Stage::PS, m_shaderLib->GetShader(Shader::Stage::PS, psIndex++));
+		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineLib.get());
 		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
-		state->OMSetBlendState(Graphics::NON_PRE_MUL, m_graphicsPipelineCache.get());
+		state->OMSetBlendState(Graphics::NON_PRE_MUL, m_graphicsPipelineLib.get());
 		state->OMSetNumRenderTargets(1);
 		state->OMSetRTVFormat(0, rtFormat);
-		XUSG_X_RETURN(m_pipelines[UP_SAMPLE_BLEND], state->GetPipeline(m_graphicsPipelineCache.get(), L"UpSampling_alpha_blend"), false);
+		XUSG_X_RETURN(m_pipelines[UP_SAMPLE_BLEND], state->GetPipeline(m_graphicsPipelineLib.get(), L"UpSampling_alpha_blend"), false);
 	}
 
 	// Up sampling compute
 	if (typedUAV)
 	{
-		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, CS_UP_SAMPLE, L"CSCosUp_in_place.cso"), false);
+		XUSG_N_RETURN(m_shaderLib->CreateShader(Shader::Stage::CS, CS_UP_SAMPLE, L"CSCosUp_in_place.cso"), false);
 
 		const auto state = Compute::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[UP_SAMPLE_INPLACE]);
-		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, CS_UP_SAMPLE));
-		XUSG_X_RETURN(m_pipelines[UP_SAMPLE_INPLACE], state->GetPipeline(m_computePipelineCache.get(), L"UpSampling_in_place"), false);
+		state->SetShader(m_shaderLib->GetShader(Shader::Stage::CS, CS_UP_SAMPLE));
+		XUSG_X_RETURN(m_pipelines[UP_SAMPLE_INPLACE], state->GetPipeline(m_computePipelineLib.get(), L"UpSampling_in_place"), false);
 	}
 
 	// Up sampling graphics, for the final pass
 	{
-		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::PS, psIndex, L"PSCosineUp.cso"), false);
+		XUSG_N_RETURN(m_shaderLib->CreateShader(Shader::Stage::PS, psIndex, L"PSCosineUp.cso"), false);
 
 		const auto state = Graphics::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[FINAL_G]);
-		state->SetShader(Shader::Stage::VS, m_shaderPool->GetShader(Shader::Stage::VS, vsIndex));
-		state->SetShader(Shader::Stage::PS, m_shaderPool->GetShader(Shader::Stage::PS, psIndex));
-		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineCache.get());
+		state->SetShader(Shader::Stage::VS, m_shaderLib->GetShader(Shader::Stage::VS, vsIndex));
+		state->SetShader(Shader::Stage::PS, m_shaderLib->GetShader(Shader::Stage::PS, psIndex));
+		state->DSSetState(Graphics::DEPTH_STENCIL_NONE, m_graphicsPipelineLib.get());
 		state->IASetPrimitiveTopologyType(PrimitiveTopologyType::TRIANGLE);
 		state->OMSetNumRenderTargets(1);
 		state->OMSetRTVFormat(0, rtFormat);
-		XUSG_X_RETURN(m_pipelines[FINAL_G], state->GetPipeline(m_graphicsPipelineCache.get(), L"UpSampling_graphics"), false);
+		XUSG_X_RETURN(m_pipelines[FINAL_G], state->GetPipeline(m_graphicsPipelineLib.get(), L"UpSampling_graphics"), false);
 	}
 
 	// Up sampling compute, for the final pass
 	{
-		XUSG_N_RETURN(m_shaderPool->CreateShader(Shader::Stage::CS, CS_FINAL, L"CSCosineUp.cso"), false);
+		XUSG_N_RETURN(m_shaderLib->CreateShader(Shader::Stage::CS, CS_FINAL, L"CSCosineUp.cso"), false);
 
 		const auto state = Compute::State::MakeUnique();
 		state->SetPipelineLayout(m_pipelineLayouts[FINAL_C]);
-		state->SetShader(m_shaderPool->GetShader(Shader::Stage::CS, CS_FINAL));
-		XUSG_X_RETURN(m_pipelines[FINAL_C], state->GetPipeline(m_computePipelineCache.get(), L"UpSampling_compute"), false);
+		state->SetShader(m_shaderLib->GetShader(Shader::Stage::CS, CS_FINAL));
+		XUSG_X_RETURN(m_pipelines[FINAL_C], state->GetPipeline(m_computePipelineLib.get(), L"UpSampling_compute"), false);
 	}
 
 	return true;
@@ -393,7 +393,7 @@ bool LightProbe::createDescriptorTables()
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_radiance->GetUAV());
-		XUSG_X_RETURN(m_uavTables[TABLE_RADIANCE][0], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+		XUSG_X_RETURN(m_uavTables[TABLE_RADIANCE][0], descriptorTable->GetCbvSrvUavTable(m_descriptorTableLib.get()), false);
 	}
 
 	// Get SRV tables for radiance generation
@@ -403,7 +403,7 @@ bool LightProbe::createDescriptorTables()
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_sources[i]->GetSRV());
-		XUSG_X_RETURN(m_srvTables[TABLE_RADIANCE][i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+		XUSG_X_RETURN(m_srvTables[TABLE_RADIANCE][i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableLib.get()), false);
 	}
 	{
 		const auto i = numSources - 1;
@@ -414,7 +414,7 @@ bool LightProbe::createDescriptorTables()
 		};
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, static_cast<uint32_t>(size(descriptors)), descriptors);
-		XUSG_X_RETURN(m_srvTables[TABLE_RADIANCE][i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+		XUSG_X_RETURN(m_srvTables[TABLE_RADIANCE][i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableLib.get()), false);
 	}
 
 	// Get UAVs for resampling
@@ -423,7 +423,7 @@ bool LightProbe::createDescriptorTables()
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, &m_irradiance->GetUAV(i));
-		XUSG_X_RETURN(m_uavTables[TABLE_RESAMPLE][i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+		XUSG_X_RETURN(m_uavTables[TABLE_RESAMPLE][i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableLib.get()), false);
 	}
 
 	// Get SRVs for resampling
@@ -432,14 +432,14 @@ bool LightProbe::createDescriptorTables()
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 		descriptorTable->SetDescriptors(0, 1, i ? &m_irradiance->GetSRVLevel(i) : &m_radiance->GetSRV());
-		XUSG_X_RETURN(m_srvTables[TABLE_RESAMPLE][i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableCache.get()), false);
+		XUSG_X_RETURN(m_srvTables[TABLE_RESAMPLE][i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableLib.get()), false);
 	}
 
 	// Create the sampler table
 	const auto descriptorTable = Util::DescriptorTable::MakeUnique();
 	const auto sampler = LINEAR_WRAP;
-	descriptorTable->SetSamplers(0, 1, &sampler, m_descriptorTableCache.get());
-	XUSG_X_RETURN(m_samplerTable, descriptorTable->GetSamplerTable(m_descriptorTableCache.get()), false);
+	descriptorTable->SetSamplers(0, 1, &sampler, m_descriptorTableLib.get());
+	XUSG_X_RETURN(m_samplerTable, descriptorTable->GetSamplerTable(m_descriptorTableLib.get()), false);
 
 	return true;
 }
@@ -489,7 +489,7 @@ void LightProbe::upsampleGraphics(CommandList* pCommandList, ResourceBarrier* pB
 		pCommandList->SetGraphics32BitConstant(2, level);
 		numBarriers = m_irradiance->Blit(pCommandList, pBarriers, level, c,
 			ResourceState::PIXEL_SHADER_RESOURCE, m_srvTables[TABLE_RESAMPLE][c],
-			1, numBarriers, 0, 0, XUSG_SizeOfInUint32(level));
+			1, numBarriers, 0, 0, XUSG_UINT32_SIZE_OF(level));
 	}
 
 	// Final pass
@@ -500,7 +500,7 @@ void LightProbe::upsampleGraphics(CommandList* pCommandList, ResourceBarrier* pB
 	pCommandList->SetPipelineState(m_pipelines[FINAL_G]);
 	numBarriers = m_irradiance->Blit(pCommandList, pBarriers, 0, 1,
 		ResourceState::PIXEL_SHADER_RESOURCE, m_srvTables[TABLE_RESAMPLE][0],
-		1, numBarriers, 0, 0, XUSG_SizeOfInUint32(uint32_t));
+		1, numBarriers, 0, 0, XUSG_UINT32_SIZE_OF(uint32_t));
 }
 
 void LightProbe::upsampleCompute(CommandList* pCommandList, ResourceBarrier* pBarriers, uint32_t numBarriers)

@@ -141,8 +141,8 @@ void IrradianceMap::LoadPipeline()
 			(L"CommandAllocator" + to_wstring(n)).c_str()), ThrowIfFailed(E_FAIL));
 	}
 
-	// Create descriptor table cache.
-	m_descriptorTableCache = DescriptorTableCache::MakeShared(m_device.get(), L"DescriptorTableCache");
+	// Create descriptor-table lib.
+	m_descriptorTableLib = DescriptorTableLib::MakeShared(m_device.get(), L"DescriptorTableLib");
 
 }
 
@@ -158,11 +158,11 @@ void IrradianceMap::LoadAssets()
 	vector<Resource::uptr> uploaders(0);
 
 	m_lightProbe = make_unique<LightProbe>();
-	XUSG_N_RETURN(m_lightProbe->Init(pCommandList, m_descriptorTableCache, uploaders, m_envFileNames.data(),
+	XUSG_N_RETURN(m_lightProbe->Init(pCommandList, m_descriptorTableLib, uploaders, m_envFileNames.data(),
 		static_cast<uint32_t>(m_envFileNames.size()), m_typedUAV), ThrowIfFailed(E_FAIL));
 
 	m_renderer = make_unique<Renderer>();
-	XUSG_N_RETURN(m_renderer->Init(pCommandList, m_descriptorTableCache, uploaders,
+	XUSG_N_RETURN(m_renderer->Init(pCommandList, m_descriptorTableLib, uploaders,
 		m_meshFileName.c_str(), g_backFormat, m_meshPosScale), ThrowIfFailed(E_FAIL));
 
 	if (g_renderMode == Renderer::GROUND_TRUTH)
@@ -195,7 +195,7 @@ void IrradianceMap::LoadAssets()
 	}
 
 	// Create window size dependent resources.
-	//m_descriptorTableCache->ResetDescriptorPool(CBV_SRV_UAV_POOL, 0);
+	//m_descriptorTableLib->ResetDescriptorPool(CBV_SRV_UAV_POOL, 0);
 	CreateResources();
 
 	// Projection
@@ -300,8 +300,8 @@ void IrradianceMap::OnWindowSizeChanged(int width, int height)
 		m_renderTargets[n].reset();
 		m_fenceValues[n] = m_fenceValues[m_frameIndex];
 	}
-	m_descriptorTableCache->ResetDescriptorPool(CBV_SRV_UAV_POOL, 0);
-	m_descriptorTableCache->ResetDescriptorPool(RTV_POOL, 0);
+	m_descriptorTableLib->ResetDescriptorPool(CBV_SRV_UAV_POOL, 0);
+	m_descriptorTableLib->ResetDescriptorPool(RTV_POOL, 0);
 
 	// Determine the render target size in pixels.
 	m_width = (max)(width, 1);
@@ -487,8 +487,8 @@ void IrradianceMap::PopulateCommandList()
 	// Set Descriptor pools
 	const DescriptorPool descriptorPools[] =
 	{
-		m_descriptorTableCache->GetDescriptorPool(CBV_SRV_UAV_POOL),
-		m_descriptorTableCache->GetDescriptorPool(SAMPLER_POOL)
+		m_descriptorTableLib->GetDescriptorPool(CBV_SRV_UAV_POOL),
+		m_descriptorTableLib->GetDescriptorPool(SAMPLER_POOL)
 	};
 	pCommandList->SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
 
