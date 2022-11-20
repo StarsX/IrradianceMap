@@ -171,7 +171,7 @@
     <FxCompile Include="Content\Shaders\CSCosUp_in_place.hlsl">
       <Filter>Shaders\MipRadiance</Filter>
     </FxCompile>
-    <FxCompile Include="Content\Shaders\CSResample.hlsl">
+    <FxCompile Include="Content\Shaders\CSBlitCube.hlsl">
       <Filter>Shaders\MipRadiance</Filter>
     </FxCompile>
     <FxCompile Include="Content\Shaders\PSCosineUp.hlsl">
@@ -180,7 +180,7 @@
     <FxCompile Include="Content\Shaders\PSCosUp_blend.hlsl">
       <Filter>Shaders\MipRadiance</Filter>
     </FxCompile>
-    <FxCompile Include="Content\Shaders\PSResample.hlsl">
+    <FxCompile Include="Content\Shaders\PSBlitCube.hlsl">
       <Filter>Shaders\MipRadiance</Filter>
     </FxCompile>
   </ItemGroup>

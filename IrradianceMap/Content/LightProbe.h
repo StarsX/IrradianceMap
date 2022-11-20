@@ -45,8 +45,8 @@ protected:
 	{
 		GEN_RADIANCE_GRAPHICS,
 		GEN_RADIANCE_COMPUTE,
-		RESAMPLE_GRAPHICS,
-		RESAMPLE_COMPUTE,
+		BLIT_GRAPHICS,
+		BLIT_COMPUTE,
 		UP_SAMPLE_BLEND,
 		UP_SAMPLE_INPLACE,
 		FINAL_G,
@@ -58,7 +58,7 @@ protected:
 	enum CSIndex : uint8_t
 	{
 		CS_GEN_RADIANCE,
-		CS_RESAMPLE,
+		CS_BLIT_CUBE,
 		CS_UP_SAMPLE,
 		CS_FINAL,
 		CS_SH
@@ -67,7 +67,7 @@ protected:
 	enum UavSrvTableIndex : uint8_t
 	{
 		TABLE_RADIANCE,
-		TABLE_RESAMPLE,
+		TABLE_BLIT,
 
 		NUM_UAV_SRV
 	};
