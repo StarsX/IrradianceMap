@@ -195,7 +195,7 @@ void IrradianceMap::LoadAssets()
 	}
 
 	// Create window size dependent resources.
-	//m_descriptorTableLib->ResetDescriptorPool(CBV_SRV_UAV_POOL, 0);
+	//m_descriptorTableLib->ResetDescriptorPool(CBV_SRV_UAV_HEAP, 0);
 	CreateResources();
 
 	// Projection
@@ -300,8 +300,8 @@ void IrradianceMap::OnWindowSizeChanged(int width, int height)
 		m_renderTargets[n].reset();
 		m_fenceValues[n] = m_fenceValues[m_frameIndex];
 	}
-	m_descriptorTableLib->ResetDescriptorPool(CBV_SRV_UAV_POOL, 0);
-	m_descriptorTableLib->ResetDescriptorPool(RTV_POOL, 0);
+	m_descriptorTableLib->ResetDescriptorHeap(CBV_SRV_UAV_HEAP, 0);
+	m_descriptorTableLib->ResetDescriptorHeap(RTV_HEAP, 0);
 
 	// Determine the render target size in pixels.
 	m_width = (max)(width, 1);
@@ -484,13 +484,13 @@ void IrradianceMap::PopulateCommandList()
 	XUSG_N_RETURN(pCommandList->Reset(pCommandAllocator, nullptr), ThrowIfFailed(E_FAIL));
 
 	// Record commands.
-	// Set Descriptor pools
-	const DescriptorPool descriptorPools[] =
+	// Set descriptor heaps
+	const DescriptorHeap descriptorHeaps[] =
 	{
-		m_descriptorTableLib->GetDescriptorPool(CBV_SRV_UAV_POOL),
-		m_descriptorTableLib->GetDescriptorPool(SAMPLER_POOL)
+		m_descriptorTableLib->GetDescriptorHeap(CBV_SRV_UAV_HEAP),
+		m_descriptorTableLib->GetDescriptorHeap(SAMPLER_HEAP)
 	};
-	pCommandList->SetDescriptorPools(static_cast<uint32_t>(size(descriptorPools)), descriptorPools);
+	pCommandList->SetDescriptorHeaps(static_cast<uint32_t>(size(descriptorHeaps)), descriptorHeaps);
 
 	m_lightProbe->Process(pCommandList, m_frameIndex, m_pipelineType);	// V-cycle
 
