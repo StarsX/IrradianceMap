@@ -39,7 +39,7 @@ typedef min16float4	HALF4;
 // Constants
 //--------------------------------------------------------------------------------------
 static const uint g_historyBits = 4;
-static const uint g_historyMask = (1 << g_historyBits) - 1;
+static const uint g_historyMask = (1u << g_historyBits) - 1;
 static const float g_historyMax = g_historyMask;
 
 static const HALF3 g_luma4Base = { 1.0, 2.0, 1.0 };
@@ -180,7 +180,7 @@ HALF4 NeighborMinMax(out HALF4 neighborMin, out HALF4 neighborMax,
 	HALF3 mu = current.xyz;
 #ifndef _ALPHA_AS_ID_
 	current.w = current.w < ALPHA_BOUND ? 0.0 : 1.0;
-#elif _VARIANCE_AABB_ && defined(_DENOISER_)
+#elif _VARIANCE_AABB_ && defined(_DENOISE_)
 	const HALF alpha = current.w;
 #endif
 
@@ -215,7 +215,7 @@ HALF4 NeighborMinMax(out HALF4 neighborMin, out HALF4 neighborMax,
 	current /= 4.0;
 
 #if	_VARIANCE_AABB_
-#if defined(_DENOISER_) && defined(_ALPHA_AS_ID_)
+#if defined(_DENOISE_) && defined(_ALPHA_AS_ID_)
 	gamma = abs(alpha - current.w) < 1.0 / 255.0 ? gamma : 1.0;
 #endif
 	mu /= NUM_SAMPLES;
