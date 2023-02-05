@@ -438,8 +438,8 @@ void IrradianceMap::ParseCommandLineArgs(wchar_t* argv[], int argc)
 
 	for (auto i = 1; i < argc; ++i)
 	{
-		if (_wcsnicmp(argv[i], L"-mesh", wcslen(argv[i])) == 0 ||
-			_wcsnicmp(argv[i], L"/mesh", wcslen(argv[i])) == 0)
+		if (wcsncmp(argv[i], L"-mesh", wcslen(argv[i])) == 0 ||
+			wcsncmp(argv[i], L"/mesh", wcslen(argv[i])) == 0)
 		{
 			if (i + 1 < argc)
 			{
@@ -447,20 +447,20 @@ void IrradianceMap::ParseCommandLineArgs(wchar_t* argv[], int argc)
 				for (size_t j = 0; j < m_meshFileName.size(); ++j)
 					m_meshFileName[j] = static_cast<char>(argv[i + 1][j]);
 			}
-			m_meshPosScale.x = i + 2 < argc ? static_cast<float>(_wtof(argv[i + 2])) : m_meshPosScale.x;
-			m_meshPosScale.y = i + 3 < argc ? static_cast<float>(_wtof(argv[i + 3])) : m_meshPosScale.y;
-			m_meshPosScale.z = i + 4 < argc ? static_cast<float>(_wtof(argv[i + 4])) : m_meshPosScale.z;
-			m_meshPosScale.w = i + 5 < argc ? static_cast<float>(_wtof(argv[i + 5])) : m_meshPosScale.w;
+			m_meshPosScale.x = i + 2 < argc ? stof(argv[i + 2]) : m_meshPosScale.x;
+			m_meshPosScale.y = i + 3 < argc ? stof(argv[i + 3]) : m_meshPosScale.y;
+			m_meshPosScale.z = i + 4 < argc ? stof(argv[i + 4]) : m_meshPosScale.z;
+			m_meshPosScale.w = i + 5 < argc ? stof(argv[i + 5]) : m_meshPosScale.w;
 		}
-		else if (_wcsnicmp(argv[i], L"-env", wcslen(argv[i])) == 0 ||
-			_wcsnicmp(argv[i], L"/env", wcslen(argv[i])) == 0)
+		else if (wcsncmp(argv[i], L"-env", wcslen(argv[i])) == 0 ||
+			wcsncmp(argv[i], L"/env", wcslen(argv[i])) == 0)
 		{
 			m_envFileNames.clear();
 			for (auto j = i + 1; j < argc; ++j)
 				m_envFileNames.emplace_back(argv[j]);
 		}
-		else if (_wcsnicmp(argv[i], L"-gt", wcslen(argv[i])) == 0 ||
-			_wcsnicmp(argv[i], L"/gt", wcslen(argv[i])) == 0)
+		else if (wcsncmp(argv[i], L"-gt", wcslen(argv[i])) == 0 ||
+			wcsncmp(argv[i], L"/gt", wcslen(argv[i])) == 0)
 		{
 			m_envFileNames.clear();
 			if (i + 1 < argc) m_envFileNames.emplace_back(argv[i + 1]);
