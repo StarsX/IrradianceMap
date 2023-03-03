@@ -443,27 +443,26 @@ void IrradianceMap::ParseCommandLineArgs(wchar_t* argv[], int argc)
 		{
 			if (i + 1 < argc)
 			{
-				m_meshFileName.resize(wcslen(argv[i + 1]));
+				m_meshFileName.resize(wcslen(argv[++i]));
 				for (size_t j = 0; j < m_meshFileName.size(); ++j)
-					m_meshFileName[j] = static_cast<char>(argv[i + 1][j]);
+					m_meshFileName[j] = static_cast<char>(argv[i][j]);
 			}
-			m_meshPosScale.x = i + 2 < argc ? stof(argv[i + 2]) : m_meshPosScale.x;
-			m_meshPosScale.y = i + 3 < argc ? stof(argv[i + 3]) : m_meshPosScale.y;
-			m_meshPosScale.z = i + 4 < argc ? stof(argv[i + 4]) : m_meshPosScale.z;
-			m_meshPosScale.w = i + 5 < argc ? stof(argv[i + 5]) : m_meshPosScale.w;
+			if (i + 1 < argc) m_meshPosScale.x = stof(argv[++i]);
+			if (i + 1 < argc) m_meshPosScale.y = stof(argv[++i]);
+			if (i + 1 < argc) m_meshPosScale.z = stof(argv[++i]);
+			if (i + 1 < argc) m_meshPosScale.w = stof(argv[++i]);
 		}
 		else if (wcsncmp(argv[i], L"-env", wcslen(argv[i])) == 0 ||
 			wcsncmp(argv[i], L"/env", wcslen(argv[i])) == 0)
 		{
 			m_envFileNames.clear();
-			for (auto j = i + 1; j < argc; ++j)
-				m_envFileNames.emplace_back(argv[j]);
+			for (++i; i < argc; ++i) m_envFileNames.emplace_back(argv[i]);
 		}
 		else if (wcsncmp(argv[i], L"-gt", wcslen(argv[i])) == 0 ||
 			wcsncmp(argv[i], L"/gt", wcslen(argv[i])) == 0)
 		{
 			m_envFileNames.clear();
-			if (i + 1 < argc) m_envFileNames.emplace_back(argv[i + 1]);
+			if (i + 1 < argc) m_envFileNames.emplace_back(argv[++i]);
 			g_renderMode = Renderer::GROUND_TRUTH;
 		}
 	}
