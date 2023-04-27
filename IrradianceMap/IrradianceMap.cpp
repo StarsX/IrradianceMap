@@ -10,6 +10,7 @@
 //*********************************************************
 
 #include "IrradianceMap.h"
+#include "stb_image_write.h"
 
 using namespace std;
 using namespace XUSG;
@@ -360,6 +361,9 @@ void IrradianceMap::OnKeyUp(uint8_t key)
 	case VK_F1:
 		m_showFPS = !m_showFPS;
 		break;
+	case VK_F11:
+		m_screenShot = 1;
+		break;
 	case 'G':
 		m_glossy = 1.0f - m_glossy;
 		break;
@@ -496,22 +500,32 @@ void IrradianceMap::PopulateCommandList()
 	const auto renderMode = m_pipelineType == LightProbe::SH && g_renderMode != Renderer::GROUND_TRUTH ? Renderer::SH_APPROX : g_renderMode;
 	if (renderMode == Renderer::SH_APPROX) m_renderer->SetLightProbesSH(m_lightProbe->GetSH());
 
+	const auto pRenderTarget = m_renderTargets[m_frameIndex].get();
+
 	ResourceBarrier barriers[11];
 	const auto dstState = ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE;
 	auto numBarriers = 0u;
 	for (uint8_t i = 0; i < LightProbe::CubeMapFaceCount; ++i)
 		numBarriers = m_lightProbe->GetIrradiance()->SetBarrier(barriers, 0, dstState, numBarriers, i);
-	numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::RENDER_TARGET,
+	numBarriers = pRenderTarget->SetBarrier(barriers, ResourceState::RENDER_TARGET,
 		numBarriers, XUSG_BARRIER_ALL_SUBRESOURCES, BarrierFlag::BEGIN_ONLY);
 	m_renderer->Render(pCommandList, m_frameIndex, barriers, numBarriers, renderMode);
 
-	numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::RENDER_TARGET,
+	numBarriers = pRenderTarget->SetBarrier(barriers, ResourceState::RENDER_TARGET,
 		0, XUSG_BARRIER_ALL_SUBRESOURCES, BarrierFlag::END_ONLY);
-	m_renderer->Postprocess(pCommandList, m_renderTargets[m_frameIndex]->GetRTV(), numBarriers, barriers);
+	m_renderer->Postprocess(pCommandList, pRenderTarget->GetRTV(), numBarriers, barriers);
 	
 	// Indicate that the back buffer will now be used to present.
-	numBarriers = m_renderTargets[m_frameIndex]->SetBarrier(barriers, ResourceState::PRESENT);
+	numBarriers = pRenderTarget->SetBarrier(barriers, ResourceState::PRESENT);
 	pCommandList->Barrier(numBarriers, barriers);
+
+	// Screen-shot helper
+	if (m_screenShot == 1)
+	{
+		if (!m_readBuffer) m_readBuffer = Buffer::MakeUnique();
+		pRenderTarget->ReadBack(pCommandList, m_readBuffer.get());
+		m_screenShot = 2;
+	}
 
 	XUSG_N_RETURN(pCommandList->Close(), ThrowIfFailed(E_FAIL));
 }
@@ -549,6 +563,37 @@ void IrradianceMap::MoveToNextFrame()
 
 	// Set the fence value for the next frame.
 	m_fenceValues[m_frameIndex] = currentFenceValue + 1;
+
+	// Screen-shot helper
+	if (m_screenShot)
+	{
+		if (m_screenShot > FrameCount)
+		{
+			char timeStr[15];
+			tm dateTime;
+			const auto now = time(nullptr);
+			if (!localtime_s(&dateTime, &now) && strftime(timeStr, sizeof(timeStr), "%Y%m%d%H%M%S", &dateTime))
+				SaveImage((string("IrradianceMap_") + timeStr + ".png").c_str(), m_readBuffer.get(), m_width, m_height);
+			m_screenShot = 0;
+		}
+		else ++m_screenShot;
+	}
+}
+
+void IrradianceMap::SaveImage(char const* fileName, Buffer* imageBuffer, uint32_t w, uint32_t h, uint8_t comp)
+{
+	assert(comp == 3 || comp == 4);
+	const auto pData = static_cast<uint8_t*>(imageBuffer->Map());
+
+	//stbi_write_png_compression_level = 1024;
+	vector<uint8_t> imageData(comp * w * h);
+	for (auto i = 0u; i < w * h; ++i)
+		for (uint8_t j = 0; j < comp; ++j)
+			imageData[comp * i + j] = pData[4 * i + j];
+
+	stbi_write_png(fileName, w, h, comp, imageData.data(), 0);
+
+	m_readBuffer->Unmap();
 }
 
 double IrradianceMap::CalculateFrameStats(float* pTimeStep)
@@ -591,6 +636,8 @@ double IrradianceMap::CalculateFrameStats(float* pTimeStep)
 		}
 
 		windowText << L"    [G] Glossy " << m_glossy;
+		windowText << L"    [F11] screen shot";
+
 		SetCustomWindowText(windowText.str().c_str());
 	}
 

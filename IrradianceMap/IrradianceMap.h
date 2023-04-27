@@ -78,6 +78,9 @@ private:
 	XUSG::Fence::uptr m_fence;
 	uint64_t	m_fenceValues[FrameCount];
 
+	// Screen-shot helper
+	XUSG::Buffer::uptr		m_readBuffer;
+
 	// Application state
 	LightProbe::PipelineType m_pipelineType;
 	float		m_glossy;
@@ -88,6 +91,9 @@ private:
 	// User camera interactions
 	bool m_tracking;
 	XMFLOAT2 m_mousePt;
+
+	// Screen-shot state
+	uint8_t		m_screenShot;
 
 	// User external settings
 	std::string m_meshFileName;
@@ -101,5 +107,6 @@ private:
 	void PopulateCommandList();
 	void WaitForGpu();
 	void MoveToNextFrame();
+	void SaveImage(char const* fileName, XUSG::Buffer* imageBuffer, uint32_t w, uint32_t h, uint8_t comp = 3);
 	double CalculateFrameStats(float* fTimeStep = nullptr);
 };
