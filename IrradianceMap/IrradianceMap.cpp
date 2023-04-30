@@ -20,7 +20,7 @@ const float g_zNear = 1.0f;
 const float g_zFar = 1000.0f;
 
 Renderer::RenderMode g_renderMode = Renderer::MIP_APPROX;
-const auto g_backFormat = Format::B8G8R8A8_UNORM;
+const auto g_backBufferFormat = Format::R8G8B8A8_UNORM;
 
 IrradianceMap::IrradianceMap(uint32_t width, uint32_t height, wstring name) :
 	DXFramework(width, height, name),
@@ -164,7 +164,7 @@ void IrradianceMap::LoadAssets()
 
 	m_renderer = make_unique<Renderer>();
 	XUSG_N_RETURN(m_renderer->Init(pCommandList, m_descriptorTableLib, uploaders,
-		m_meshFileName.c_str(), g_backFormat, m_meshPosScale), ThrowIfFailed(E_FAIL));
+		m_meshFileName.c_str(), g_backBufferFormat, m_meshPosScale), ThrowIfFailed(E_FAIL));
 
 	if (g_renderMode == Renderer::GROUND_TRUTH)
 	{
@@ -218,7 +218,7 @@ void IrradianceMap::CreateSwapchain()
 	// Describe and create the swap chain.
 	m_swapChain = SwapChain::MakeUnique();
 	XUSG_N_RETURN(m_swapChain->Create(m_factory.get(), Win32Application::GetHwnd(), m_commandQueue->GetHandle(),
-		FrameCount, m_width, m_height, g_backFormat, SwapChainFlag::ALLOW_TEARING), ThrowIfFailed(E_FAIL));
+		FrameCount, m_width, m_height, g_backBufferFormat, SwapChainFlag::ALLOW_TEARING), ThrowIfFailed(E_FAIL));
 
 	// This class does not support exclusive full-screen mode and prevents DXGI from responding to the ALT+ENTER shortcut.
 	ThrowIfFailed(m_factory->MakeWindowAssociation(Win32Application::GetHwnd(), DXGI_MWA_NO_ALT_ENTER));
@@ -313,7 +313,7 @@ void IrradianceMap::OnWindowSizeChanged(int width, int height)
 	{
 		// If the swap chain already exists, resize it.
 		const auto hr = m_swapChain->ResizeBuffers(FrameCount, m_width,
-			m_height, g_backFormat, SwapChainFlag::ALLOW_TEARING);
+			m_height, g_backBufferFormat, SwapChainFlag::ALLOW_TEARING);
 
 		if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
 		{
