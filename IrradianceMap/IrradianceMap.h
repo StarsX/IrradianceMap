@@ -72,15 +72,15 @@ private:
 
 	bool		m_typedUAV;
 
+	// Screen-shot helper
+	XUSG::Buffer::uptr	m_readBuffer;
+	uint32_t			m_rowPitch;
+
 	// Synchronization objects.
 	uint8_t		m_frameIndex;
 	HANDLE		m_fenceEvent;
 	XUSG::Fence::uptr m_fence;
 	uint64_t	m_fenceValues[FrameCount];
-
-	// Screen-shot helper
-	XUSG::Buffer::uptr	m_readBuffer;
-	uint32_t			m_rowPitch;
 
 	// Application state
 	LightProbe::PipelineType m_pipelineType;
