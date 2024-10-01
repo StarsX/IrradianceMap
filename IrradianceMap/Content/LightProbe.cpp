@@ -53,15 +53,11 @@ bool LightProbe::Init(CommandList* pCommandList, const DescriptorTableLib::sptr&
 	}
 
 	// Create resources and pipelines
-	CBImmutable cb;
-	cb.NumLevels = CalculateMipLevels(texWidth, texHeight);
-	cb.MapSize = (texWidth + texHeight) * 0.5f;
-
 	const auto format = Format::R11G11B10_FLOAT;
 	m_irradiance = RenderTarget::MakeUnique();
 	XUSG_N_RETURN(m_irradiance->Create(pDevice, texWidth, texHeight, format, 6,
-		ResourceFlag::ALLOW_UNORDERED_ACCESS, cb.NumLevels, 1,
-		nullptr, true, MemoryFlag::NONE, L"Irradiance"), false);
+		ResourceFlag::ALLOW_UNORDERED_ACCESS, 0, 1, nullptr, true,
+		MemoryFlag::NONE, L"Irradiance"), false);
 
 	m_radiance = RenderTarget::MakeUnique();
 	XUSG_N_RETURN(m_radiance->Create(pDevice, texWidth, texHeight, format, 6,
@@ -69,6 +65,10 @@ bool LightProbe::Init(CommandList* pCommandList, const DescriptorTableLib::sptr&
 		MemoryFlag::NONE, L"Radiance"), false);
 
 	// Create constant buffers
+	CBImmutable cb;
+	cb.NumLevels = m_irradiance->GetNumMips();
+	cb.MapSize = (texWidth + texHeight) * 0.5f;
+
 	m_cbImmutable = ConstantBuffer::MakeUnique();
 	XUSG_N_RETURN(m_cbImmutable->Create(pDevice, sizeof(CBImmutable), 1,
 		nullptr, MemoryType::UPLOAD, MemoryFlag::NONE, L"CBImmutable"), false);
@@ -430,7 +430,7 @@ bool LightProbe::createDescriptorTables()
 	for (uint8_t i = 0; i < numMips; ++i)
 	{
 		const auto descriptorTable = Util::DescriptorTable::MakeUnique();
-		descriptorTable->SetDescriptors(0, 1, i ? &m_irradiance->GetSRVLevel(i) : &m_radiance->GetSRV());
+		descriptorTable->SetDescriptors(0, 1, i ? &m_irradiance->GetSRV(i, true) : &m_radiance->GetSRV());
 		XUSG_X_RETURN(m_srvTables[TABLE_BLIT][i], descriptorTable->GetCbvSrvUavTable(m_descriptorTableLib.get()), false);
 	}
 
@@ -456,7 +456,7 @@ uint32_t LightProbe::generateMipsCompute(CommandList* pCommandList, ResourceBarr
 {
 	auto numBarriers = m_radiance->SetBarrier(pBarriers,
 		ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE);
-	numBarriers = m_irradiance->AsTexture()->GenerateMips(pCommandList, pBarriers, 8, 8, 1,
+	numBarriers = m_irradiance->GenerateMips(pCommandList, pBarriers, 8, 8, 1,
 		ResourceState::NON_PIXEL_SHADER_RESOURCE, m_pipelineLayouts[BLIT_COMPUTE],
 		m_pipelines[BLIT_COMPUTE], &m_uavTables[TABLE_BLIT][1], 1, m_samplerTable,
 		0, numBarriers, &m_srvTables[TABLE_BLIT][0], 2);
@@ -516,7 +516,7 @@ void LightProbe::upsampleCompute(CommandList* pCommandList, ResourceBarrier* pBa
 		const auto c = numPasses - i;
 		const auto level = c - 1;
 		pCommandList->SetCompute32BitConstant(3, level);
-		numBarriers = m_irradiance->AsTexture()->Blit(pCommandList, pBarriers, 8, 8, 1, level, c,
+		numBarriers = m_irradiance->Blit(pCommandList, pBarriers, 8, 8, 1, level, c,
 			ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE,
 			m_uavTables[TABLE_BLIT][level], 1, numBarriers,
 			m_srvTables[TABLE_BLIT][c], 2);
@@ -528,7 +528,7 @@ void LightProbe::upsampleCompute(CommandList* pCommandList, ResourceBarrier* pBa
 	pCommandList->SetComputeRootConstantBufferView(3, m_cbImmutable.get());
 	pCommandList->SetCompute32BitConstant(3, 0);
 	pCommandList->SetPipelineState(m_pipelines[FINAL_C]);
-	numBarriers = m_irradiance->AsTexture()->Blit(pCommandList, pBarriers, 8, 8, 1, 0, 1,
+	numBarriers = m_irradiance->Blit(pCommandList, pBarriers, 8, 8, 1, 0, 1,
 		ResourceState::NON_PIXEL_SHADER_RESOURCE | ResourceState::PIXEL_SHADER_RESOURCE,
 		m_uavTables[TABLE_BLIT][0], 1, numBarriers,
 		m_srvTables[TABLE_BLIT][0], 2);
@@ -556,6 +556,6 @@ void LightProbe::generateRadianceCompute(CommandList* pCommandList, uint8_t fram
 	pCommandList->SetComputePipelineLayout(m_pipelineLayouts[GEN_RADIANCE_COMPUTE]);
 	pCommandList->SetComputeRootConstantBufferView(1, m_cbPerFrame.get(), m_cbPerFrame->GetCBVOffset(frameIndex));
 
-	m_radiance->AsTexture()->Blit(pCommandList, 8, 8, 1, m_uavTables[TABLE_RADIANCE][0], 2, 0,
+	m_radiance->Blit(pCommandList, 8, 8, 1, m_uavTables[TABLE_RADIANCE][0], 2, 0,
 		m_srvTables[TABLE_RADIANCE][m_inputProbeIdx], 3, m_samplerTable, 0, m_pipelines[GEN_RADIANCE_COMPUTE]);
 }
