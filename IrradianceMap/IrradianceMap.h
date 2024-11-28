@@ -47,6 +47,13 @@ public:
 	virtual void ParseCommandLineArgs(wchar_t* argv[], int argc);
 
 private:
+	enum DeviceType : uint8_t
+	{
+		DEVICE_DISCRETE,
+		DEVICE_UMA,
+		DEVICE_WARP
+	};
+
 	static const uint8_t FrameCount = LightProbe::FrameCount;
 	static_assert(FrameCount == Renderer::FrameCount, "IrradianceMap::FrameCount should be equal to Renderer::FrameCount");
 
@@ -78,11 +85,12 @@ private:
 	uint64_t	m_fenceValues[FrameCount];
 
 	// Application state
+	DeviceType	m_deviceType;
+	StepTimer	m_timer;
 	LightProbe::PipelineType m_pipelineType;
 	float		m_glossy;
 	bool		m_showFPS;
 	bool		m_isPaused;
-	StepTimer	m_timer;
 
 	// User camera interactions
 	bool m_tracking;
