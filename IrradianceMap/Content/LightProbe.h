@@ -4,8 +4,7 @@
 
 #pragma once
 
-#include "Core/XUSG.h"
-#include "Advanced/XUSGSphericalHarmonics.h"
+#include "Advanced/XUSGAdvanced.h"
 
 class LightProbe
 {

@@ -2,11 +2,8 @@
 // Copyright (c) XU, Tianchen. All rights reserved.
 //--------------------------------------------------------------------------------------
 
-//#include "DXFrameworkHelper.h"
 #include "Renderer.h"
-#define _INDEPENDENT_HALTON_
-#include "Advanced/XUSGHalton.h"
-#undef _INDEPENDENT_HALTON_
+#include "Advanced/XUSGAdvanced.h"
 #include "Optional/XUSGObjLoader.h"
 
 using namespace std;

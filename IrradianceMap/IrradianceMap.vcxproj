@@ -199,6 +199,7 @@ COPY /Y "$(ProjectDir)XUSG\Bin\$(Platform)\$(Configuration)\*.dll" "$(ProjectDir
     <ClInclude Include="Content\Renderer.h" />
     <ClInclude Include="IrradianceMap.h" />
     <ClInclude Include="stdafx.h" />
+    <ClInclude Include="XUSG\Advanced\XUSGAdvanced.h" />
     <ClInclude Include="XUSG\Advanced\XUSGDDSLoader.h" />
     <ClInclude Include="XUSG\Advanced\XUSGHalton.h" />
     <ClInclude Include="XUSG\Advanced\XUSGSphericalHarmonics.h" />

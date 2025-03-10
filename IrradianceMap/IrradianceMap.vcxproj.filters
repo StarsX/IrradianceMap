@@ -93,6 +93,9 @@
     <ClInclude Include="Common\stb_image_write.h">
       <Filter>Common\Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="XUSG\Advanced\XUSGAdvanced.h">
+      <Filter>XUSG</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Common\DXFramework.cpp">
